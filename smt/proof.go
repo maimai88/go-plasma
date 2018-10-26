@@ -83,3 +83,30 @@ func (p *Proof) Bytes() (out []byte) {
 	}
 	return out
 }
+
+func (p *Proof) Key() (index uint64) {
+	return deep.BytesToUint64(p.key)
+}
+
+func ToProof(index uint64, proofBytes []byte) *Proof {
+	var pbits, psegs []byte
+	var p Proof
+	pbits, psegs = proofBytes[:8], proofBytes[8:]
+	p.key = deep.UInt64ToByte(index)
+	p.proofBits = deep.BytesToUint64(pbits)
+	p.proof = proofSplit(psegs)
+	return &p
+}
+
+func proofSplit(segments []byte) [][]byte {
+	var proof []byte
+	proofs := make([][]byte, 0, len(segments)/32+1)
+	for len(segments) >= 32 {
+		proof, segments = segments[:32], segments[32:]
+		proofs = append(proofs, proof)
+	}
+	if len(segments) > 0 {
+		proofs = append(proofs, segments[:len(segments)])
+	}
+	return proofs
+}

@@ -2,19 +2,10 @@
 // This file is part of the Wolk go-plasma library.
 package smt_test
 
-import (
-	"bytes"
-	"fmt"
-	"testing"
-	"time"
-	
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/wolkdb/go-plasma/plasmachain"
-	"github.com/wolkdb/go-plasma/smt"
-)
-
+//Seriously Outdated. Skip for now...
+/*
 func TestSequence(t *testing.T) {
-
+	t.SkipNow()
 	// setup plasma store
 	pcs, err := plasmachain.NewPlasmaChunkstore(plasmachain.DefaultChunkstorePath)
 	if err != nil {
@@ -140,3 +131,4 @@ func TestSMT(t *testing.T) {
 		fmt.Printf("Version %d  -- %d/%d keys PASSED\n", ver, passes, nkeys)
 	}
 }
+*/
