@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/wolkdb/go-plasma/deep"
@@ -197,7 +198,8 @@ func (self *StateDB) Commit(cs deep.StorageLayer /*blockchainID uint64, */, bloc
 	}
 
 	self.Storage.Flush()
-	h := self.Storage.MakeHeaderHash(blockNumber, parentHash, bloomID)
+	minter := crypto.PubkeyToAddress(self.operatorKey.PublicKey)
+	h := self.Storage.MakeHeader(blockNumber, parentHash, bloomID, minter)
 	return &h, err
 }
 

@@ -963,7 +963,11 @@ func (self *PlasmaChain) getBlockByNumber(blockNumber uint64) (b deep.Block, err
 	}
 	log.Info(fmt.Sprintf("Successfully retrieved block %d with key [%x]", blockNumber, k))
 	bl := FromChunk(v)
-	log.Info("getBlockByNumber", "bn", blockNumber, "bl", bl.String())
+	log.Debug("getBlockByNumber", "bn", blockNumber, "bl", bl.String())
+	_, err = bl.ValidateBlock()
+	if err != nil {
+		return b, err
+	}
 	return *bl, nil
 }
 
@@ -990,11 +994,14 @@ func (self *PlasmaChain) getBlockHeaderByNumber(blockNumber uint64) (h Header, e
 		return h, fmt.Errorf("try to retrieve [block #%d] headerHash [%x] and got nothing back", blockNumber, headerHash)
 	}
 	header := FromHeader(data)
+	err = header.ValidateHeader()
+	if err != nil {
+		return h, err
+	}
 	return *header, nil
 }
 
 func (self *PlasmaChain) getPlasmaToken(tokenID, blockNumber uint64) (t *Token, err error) {
-	//tokenID8 := deep.BytesToUint64(tokenID.Bytes())
 	h, err := self.getBlockHeaderByNumber(blockNumber)
 	if err != nil {
 		return t, err
@@ -1434,7 +1441,6 @@ func (self *PlasmaChain) processDeposits(tokens map[uint64]*TokenInfo) (err erro
 }
 
 func (self *PlasmaChain) processDeposit(tokenID []byte, t *TokenInfo) (err error) {
-	tokenID8 := tokenID
 	token := NewToken(t.DepositIndex, t.Denomination, t.Depositor)
 	tx := NewTransaction(token, t, &(t.Depositor))
 	a := crypto.PubkeyToAddress(self.operatorKey.PublicKey)
@@ -1443,7 +1449,7 @@ func (self *PlasmaChain) processDeposit(tokenID []byte, t *TokenInfo) (err error
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Deposit:  TokenID %x | Denomination %d | DepositIndex %d  (Depositor: %v, TxHash: 0x%s)\n", tokenID8, t.Denomination, t.DepositIndex, t.Depositor.Hex(), common.Bytes2Hex(tx.Hash().Bytes()))
+	fmt.Printf("Deposit:  TokenID %x | Denomination %d | DepositIndex %d  (Depositor: %v, TxHash: 0x%s)\n", tokenID, t.Denomination, t.DepositIndex, t.Depositor.Hex(), common.Bytes2Hex(tx.Hash().Bytes()))
 	self.addTransactionToPool(tx)
 	return nil
 }

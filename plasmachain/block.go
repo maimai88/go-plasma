@@ -28,8 +28,7 @@ type NewGeneratedPlasmaBlockEvent struct{ Block *Block }
 type Block struct {
 	header *Header `json:"header"`
 	body   *Body   `json:"body"`
-	// used for encoding
-	data encBlock
+	data   encBlock
 }
 
 type encBlock struct {
@@ -40,8 +39,7 @@ type encBlock struct {
 type Body struct {
 	Layer2Transactions []*Transaction            `json:"layer2Transactions"`
 	AnchorTransactions []*deep.AnchorTransaction `json:"AnchorTransactions"`
-
-	data encBody
+	data               encBody
 }
 
 type encBody struct {
@@ -50,30 +48,32 @@ type encBody struct {
 }
 
 type Header struct {
-	ParentHash      common.Hash `json:"parentHash"     gencodec:"required"`
-	BlockNumber     uint64      `json:"blockNumber"    gencodec:"required`
-	Time            uint64      `json:"time"           gencodec:"required`
-	BloomID         common.Hash `json:"bloomID"         gencodec:"required`
-	TransactionRoot common.Hash `json:"transactionRoot" gencodec:"required`
-	TokenRoot       common.Hash `json:"tokenRoot"       gencodec:"required`
-	AccountRoot     common.Hash `json:"accountRoot"     gencodec:"required`
-	L3ChainRoot     common.Hash `json:"l3ChainRoot"     gencodec:"required`
-	AnchorRoot      common.Hash `json:"anchorRoot"      gencodec:"required`
-	Sig             []byte      `json:"sig"             gencodec:"required`
+	ParentHash      common.Hash    `json:"parentHash"     gencodec:"required"`
+	BlockNumber     uint64         `json:"blockNumber"    gencodec:"required`
+	Time            uint64         `json:"time"           gencodec:"required`
+	BloomID         common.Hash    `json:"bloomID"         gencodec:"required`
+	TransactionRoot common.Hash    `json:"transactionRoot" gencodec:"required`
+	TokenRoot       common.Hash    `json:"tokenRoot"       gencodec:"required`
+	AccountRoot     common.Hash    `json:"accountRoot"     gencodec:"required`
+	L3ChainRoot     common.Hash    `json:"l3ChainRoot"     gencodec:"required`
+	AnchorRoot      common.Hash    `json:"anchorRoot"      gencodec:"required`
+	Minter          common.Address `json:"minter"          gencodec:"required`
+	Sig             []byte         `json:"sig"             gencodec:"required`
 	data            encHeader
 }
 
 type encHeader struct {
-	ParentHash      common.Hash `json:"parentHash"`
-	BlockNumber     uint64      `json:"blockNumber"`
-	Time            uint64      `json:"time"`
-	BloomID         common.Hash `json:"bloomID"`         // incremental plasma transactions -- build at each block
-	TransactionRoot common.Hash `json:"transactionRoot"` // incremental plasma transactions -- used in L1
-	TokenRoot       common.Hash `json:"tokenRoot"`       // all token storage
-	AccountRoot     common.Hash `json:"accountRoot"`     // all account storage
-	L3ChainRoot     common.Hash `json:"l3ChainRoot"`     // l3 blockcahins storage
-	AnchorRoot      common.Hash `json:"anchorRoot"`      // incremental Anchor transactions
-	Sig             []byte      `json:"sig"`
+	ParentHash      common.Hash    `json:"parentHash"`
+	BlockNumber     uint64         `json:"blockNumber"`
+	Time            uint64         `json:"time"`
+	BloomID         common.Hash    `json:"bloomID"`         // incremental plasma transactions -- build at each block
+	TransactionRoot common.Hash    `json:"transactionRoot"` // incremental plasma transactions -- used in L1
+	TokenRoot       common.Hash    `json:"tokenRoot"`       // all token storage
+	AccountRoot     common.Hash    `json:"accountRoot"`     // all account storage
+	L3ChainRoot     common.Hash    `json:"l3ChainRoot"`     // l3 blockcahins storage
+	AnchorRoot      common.Hash    `json:"anchorRoot"`      // incremental Anchor transactions
+	Minter          common.Address `json:"minter"`
+	Sig             []byte         `json:"sig"`
 }
 
 //# go:generate gencodec -type Header -field-override headerMarshaling -out header_json.go
@@ -125,6 +125,7 @@ func (hdr *Header) EncodeRLP(w io.Writer) (err error) {
 	hdr.data.AccountRoot = hdr.AccountRoot
 	hdr.data.L3ChainRoot = hdr.L3ChainRoot
 	hdr.data.AnchorRoot = hdr.AnchorRoot
+	hdr.data.Minter = hdr.Minter
 	hdr.data.Sig = hdr.Sig
 	return rlp.Encode(w, hdr.data)
 }
@@ -142,6 +143,7 @@ func (hdr *Header) DecodeRLP(s *rlp.Stream) error {
 	hdr.AccountRoot = hdr.data.AccountRoot
 	hdr.L3ChainRoot = hdr.data.L3ChainRoot
 	hdr.AnchorRoot = hdr.data.AnchorRoot
+	hdr.Minter = hdr.data.Minter
 	hdr.Sig = hdr.data.Sig
 	return nil
 }
@@ -166,6 +168,7 @@ func CopyHeader(hdr *Header) *Header {
 		AccountRoot:     hdr.AccountRoot,
 		L3ChainRoot:     hdr.L3ChainRoot,
 		AnchorRoot:      hdr.AnchorRoot,
+		Minter:          hdr.Minter,
 		Sig:             hdr.Sig,
 	}
 }
@@ -210,17 +213,25 @@ func (block *Block) GetSigner() (signer common.Address, err error) {
 }
 
 func (block *Block) ValidateBlock() (validated bool, err error) {
-	signer, err := block.GetSigner()
+	err = block.header.ValidateHeader()
 	if err != nil {
-		log.Info("ValidateBlock ERR", "signer", signer)
+		log.Info("ValidateHeader", "ERR", err)
 		return false, err
 	}
-	//TODO: block requires minter addr to validate
-	// if bytes.Compare(common.HexToAddress(operatorAddress).Bytes(), signer.Bytes()) != 0 {
-	// 	return false, fmt.Errorf("Invalid block signer %x %x", signer.Bytes(), common.HexToAddress(operatorAddress).Bytes())
-	// }
-
+	//TODO: Sign on block
 	return true, nil
+}
+
+func (hdr *Header) ValidateHeader() (err error) {
+	minter, err := hdr.GetSigner()
+	if err != nil {
+		return err
+	}
+
+	if bytes.Compare(minter.Bytes(), hdr.Minter.Bytes()) != 0 {
+		return fmt.Errorf("Invalid Minter: %s", minter.Hex())
+	}
+	return nil
 }
 
 func (block Block) ValidateBody() (valid bool, err error) {
@@ -282,6 +293,7 @@ func (block *Block) OutputBlock(fullTx bool) (out map[string]interface{}) {
 	out["accountRoot"] = block.header.AccountRoot.Hex()
 	out["l3ChainRoot"] = block.header.L3ChainRoot.Hex()
 	out["anchorRoot"] = block.header.AnchorRoot.Hex()
+	out["minter"] = block.header.Minter.Hex()
 	out["sig"] = fmt.Sprintf("%x", block.header.Sig)
 	if fullTx {
 		out["layer2Transactions"] = fmt.Sprintf("%v", block.body.Layer2Transactions)
@@ -312,7 +324,6 @@ func FromChunk(in []byte) (b *Block) {
 	return &ob
 }
 
-//TODO: why is sig not part of headerhash
 func (hdr *Header) Hash() (h common.Hash) {
 	hw := sha3.NewKeccak256()
 	rlp.Encode(hw, []interface{}{
@@ -325,6 +336,8 @@ func (hdr *Header) Hash() (h common.Hash) {
 		hdr.AccountRoot,
 		hdr.L3ChainRoot,
 		hdr.AnchorRoot,
+		hdr.Minter,
+		hdr.Sig,
 	})
 	hw.Sum(h[:0])
 	return h
@@ -334,7 +347,7 @@ func (hdr *Header) HeaderHash() (h common.Hash) {
 	return hdr.Hash()
 }
 
-func (hdr *Header) UnsignedHash() common.Hash {
+func (hdr *Header) ShortHash() common.Hash {
 	unsignedhdr := &Header{
 		ParentHash:      hdr.ParentHash,
 		BlockNumber:     hdr.BlockNumber,
@@ -345,12 +358,13 @@ func (hdr *Header) UnsignedHash() common.Hash {
 		AccountRoot:     hdr.AccountRoot,
 		L3ChainRoot:     hdr.L3ChainRoot,
 		AnchorRoot:      hdr.AnchorRoot,
+		Sig:             make([]byte, 0),
 	}
 	return unsignedhdr.Hash()
 }
 
 func (hdr *Header) GetSigner() (signer common.Address, err error) {
-	recoveredPub, err := crypto.Ecrecover(hdr.UnsignedHash().Bytes(), hdr.Sig)
+	recoveredPub, err := crypto.Ecrecover(signHash(hdr.ShortHash().Bytes()), hdr.Sig)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -364,8 +378,7 @@ func (hdr *Header) GetSigner() (signer common.Address, err error) {
 
 // WARNING: state/ownership is not checked by signTX
 func (hdr *Header) SignHeader(priv *ecdsa.PrivateKey) (err error) {
-	hash := hdr.UnsignedHash()
-	sig, err := crypto.Sign(hash.Bytes(), priv)
+	sig, err := crypto.Sign(signHash(hdr.ShortHash().Bytes()), priv)
 	if err != nil {
 		return err
 	}

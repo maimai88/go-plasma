@@ -79,7 +79,7 @@ func (self *Storage) Flush() {
 }
 
 // Called by commit
-func (self *Storage) MakeHeaderHash(blockNumber uint64, parentHash, bloomID common.Hash) Header {
+func (self *Storage) MakeHeader(blockNumber uint64, parentHash, bloomID common.Hash, minter common.Address) Header {
 	var h Header
 	h.BlockNumber = blockNumber
 	h.ParentHash = parentHash
@@ -90,5 +90,6 @@ func (self *Storage) MakeHeaderHash(blockNumber uint64, parentHash, bloomID comm
 	h.AccountRoot = self.accountStorage.MerkleRoot()
 	h.L3ChainRoot = self.chainStorage.MerkleRoot()
 	h.AnchorRoot = self.anchorStorage.MerkleRoot()
+	h.Minter = minter
 	return h
 }
