@@ -34,6 +34,7 @@ type anchorTransactionMarshaling struct {
 	BlockChainID hexutil.Uint64
 	BlockNumber  hexutil.Uint64
 	Sig          hexutil.Bytes
+	Hash         common.Hash `json:"txhash"`
 }
 
 // short hash

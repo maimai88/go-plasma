@@ -4,16 +4,22 @@ package smt
 
 import (
 	"encoding/binary"
-	"math/big"
-
-	"github.com/wolkdb/go-plasma/deep"
+	"github.com/ethereum/go-ethereum/crypto/sha3"
 )
+
+func Computehash(data ...[]byte) []byte {
+	d := sha3.NewKeccak256()
+	for _, b := range data {
+		d.Write(b)
+	}
+	return d.Sum(nil)
+}
 
 func ComputeDefaultHashes() (defaultHashes [TreeDepth][]byte) {
 	empty := make([]byte, 0)
-	defaultHashes[0] = deep.Keccak256(empty)
+	defaultHashes[0] = Computehash(empty)
 	for level := 1; level < TreeDepth; level++ {
-		defaultHashes[level] = deep.Keccak256(defaultHashes[level-1], defaultHashes[level-1])
+		defaultHashes[level] = Computehash(defaultHashes[level-1], defaultHashes[level-1])
 	}
 	return defaultHashes
 }
@@ -39,10 +45,5 @@ func Uint64ToBytes32(i uint64) (k []byte) {
 
 func Bytes32ToUint64(k []byte) (out uint64) {
 	h := k[0:8]
-	return deep.BytesToUint64(h)
-}
-
-func UInt64ToBigInt(i uint64) (b *big.Int) {
-	// PETHTODO
-	return b
+	return binary.BigEndian.Uint64(h)
 }

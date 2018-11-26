@@ -24,6 +24,7 @@ func (t Transaction) MarshalJSON() ([]byte, error) {
 		Allowance    hexutil.Uint64  `json:"allowance"    gencodec:"required"`
 		Spent        hexutil.Uint64  `json:"spent"        gencodec:"required"`
 		Sig          hexutil.Bytes   `json:"sig"`
+		Hash         common.Hash     `json:"txhash"`
 	}
 	var enc Transaction
 	enc.TokenID = hexutil.Uint64(t.TokenID)
@@ -35,6 +36,7 @@ func (t Transaction) MarshalJSON() ([]byte, error) {
 	enc.Allowance = hexutil.Uint64(t.Allowance)
 	enc.Spent = hexutil.Uint64(t.Spent)
 	enc.Sig = t.Sig
+	enc.Hash = t.Hash()
 	return json.Marshal(&enc)
 }
 
@@ -90,49 +92,5 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 	if dec.Sig != nil {
 		t.Sig = *dec.Sig
 	}
-	return nil
-}
-
-var _ = (*tokenInfoMarshaling)(nil)
-
-// MarshalJSON marshals as JSON.
-func (t TokenInfo) MarshalJSON() ([]byte, error) {
-	type TokenInfo struct {
-		DepositIndex hexutil.Uint64 `json:"depositIndex"  gencodec:"required"`
-		Denomination hexutil.Uint64 `json:"denomination"  gencodec:"required"`
-		Depositor    common.Address `json:"depositor"     gencodec:"required"`
-		TokenID      hexutil.Uint64 `json:"tokenID"`
-	}
-	var enc TokenInfo
-	enc.DepositIndex = hexutil.Uint64(t.DepositIndex)
-	enc.Denomination = hexutil.Uint64(t.Denomination)
-	enc.Depositor = t.Depositor
-	enc.TokenID = hexutil.Uint64(t.TokenID())
-	return json.Marshal(&enc)
-}
-
-// UnmarshalJSON unmarshals from JSON.
-func (t *TokenInfo) UnmarshalJSON(input []byte) error {
-	type TokenInfo struct {
-		DepositIndex *hexutil.Uint64 `json:"depositIndex"  gencodec:"required"`
-		Denomination *hexutil.Uint64 `json:"denomination"  gencodec:"required"`
-		Depositor    *common.Address `json:"depositor"     gencodec:"required"`
-	}
-	var dec TokenInfo
-	if err := json.Unmarshal(input, &dec); err != nil {
-		return err
-	}
-	if dec.DepositIndex == nil {
-		return errors.New("missing required field 'depositIndex' for TokenInfo")
-	}
-	t.DepositIndex = uint64(*dec.DepositIndex)
-	if dec.Denomination == nil {
-		return errors.New("missing required field 'denomination' for TokenInfo")
-	}
-	t.Denomination = uint64(*dec.Denomination)
-	if dec.Depositor == nil {
-		return errors.New("missing required field 'depositor' for TokenInfo")
-	}
-	t.Depositor = *dec.Depositor
 	return nil
 }

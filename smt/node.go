@@ -131,7 +131,7 @@ func (n *Node) computeMerkleRootCache(defaultHashes [TreeDepth][]byte) {
 					n.mrcache[bitsPerPiece][i*2+1] = dh
 				}
 			}
-			n.mrcache[level][i] = deep.Keccak256(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1])
+			n.mrcache[level][i] = Computehash(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1])
 			if bytes.Compare(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1]) != 0 {
 				if debug {
 					fmt.Printf(" G mrcache[level %d][i %d]: %x", level, i, n.mrcache[level][i])
@@ -161,12 +161,12 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 				if debug && (i < 1 || i > 54) {
 					fmt.Printf(" mr %x bit %3d (%08b)=1 hash(defaultHashes[%d]:%x, cur:%x) => ", n.key, i, i, i, defaultHashes[i], cur)
 				}
-				cur = deep.Keccak256(defaultHashes[i], cur)
+				cur = Computehash(defaultHashes[i], cur)
 			} else { // i-th bit is "0", so hash with H([]) on the right
 				if debug && (i < 1 || i > 54) {
 					fmt.Printf(" mr %x bit %3d (%08b)=0 hash(cur:%x, defaultHashes[%d]:%x) => ", n.key, i, i, cur, i, defaultHashes[i])
 				}
-				cur = deep.Keccak256(cur, defaultHashes[i])
+				cur = Computehash(cur, defaultHashes[i])
 			}
 			if debug && (i < 1 || i > 54) {
 				fmt.Printf(" %x\n", cur)
@@ -208,7 +208,7 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 					n.mrcache[bitsPerPiece][i*2+1] = dh
 				}
 			}
-			n.mrcache[level][i] = deep.Keccak256(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1])
+			n.mrcache[level][i] = Computehash(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1])
 			if bytes.Compare(n.mrcache[level+1][i*2], n.mrcache[level+1][i*2+1]) != 0 {
 				if debug {
 					fmt.Printf(" G mrcache[level %d][i %d]: %x", level, i, n.mrcache[level][i])
@@ -337,9 +337,9 @@ func (self *Node) load(pcs deep.StorageLayer) bool {
 					self.children[j].key = p_key // 8 bytes
 				}
 				self.children[j].chunkHash = p_hash
-				self.children[j].storageBytes = deep.BytesToUint64(chunk[j*bytesPerChild+40 : j*bytesPerChild+48])
+				self.children[j].storageBytes = Bytes32ToUint64(chunk[j*bytesPerChild+40 : j*bytesPerChild+48])
 				self.children[j].merkleRoot = chunk[j*bytesPerChild+48 : j*bytesPerChild+80]
-				self.children[j].blockNum = deep.BytesToUint64(chunk[j*bytesPerChild+80 : j*bytesPerChild+88])
+				self.children[j].blockNum = Bytes32ToUint64(chunk[j*bytesPerChild+80 : j*bytesPerChild+88])
 			}
 		}
 	}
@@ -403,7 +403,7 @@ func (self *Node) flush(pcs deep.StorageLayer) (err error) {
 			}
 		}
 		// store newly developed chunk to Cloudstore
-		chunkID := deep.Keccak256(chunk)
+		chunkID := Computehash(chunk)
 		//log.Info("Flush", "chunkhash", chunkID, "chunk", chunk)
 		//err := pcs.StoreChunk(chunkID, chunk)
 		go func() {

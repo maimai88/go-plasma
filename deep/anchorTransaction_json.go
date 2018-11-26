@@ -20,13 +20,16 @@ func (a AnchorTransaction) MarshalJSON() ([]byte, error) {
 		BlockHash    *common.Hash   `json:"blockhash"       gencodec:"required"`
 		Extra        Ownership      `json:"extra"`
 		Sig          hexutil.Bytes  `json:"sig"             gencodec:"required"`
+		Hash         common.Hash    `json:"txhash"`
 	}
+
 	var enc AnchorTransaction
 	enc.BlockChainID = hexutil.Uint64(a.BlockChainID)
 	enc.BlockNumber = hexutil.Uint64(a.BlockNumber)
 	enc.BlockHash = a.BlockHash
 	enc.Extra = a.Extra
 	enc.Sig = a.Sig
+	enc.Hash = a.Hash()
 	return json.Marshal(&enc)
 }
 

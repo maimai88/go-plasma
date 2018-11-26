@@ -39,13 +39,14 @@ type Transaction struct {
 
 //marshalling store external type, if different
 type transactionMarshaling struct {
-	TokenID      hexutil.Uint64
-	Denomination hexutil.Uint64
-	DepositIndex hexutil.Uint64
-	PrevBlock    hexutil.Uint64
-	Allowance    hexutil.Uint64
-	Spent        hexutil.Uint64
-	Sig          hexutil.Bytes
+	TokenID      	hexutil.Uint64
+	Denomination 	hexutil.Uint64
+	DepositIndex 	hexutil.Uint64
+	PrevBlock    	hexutil.Uint64
+	Allowance    	hexutil.Uint64
+	Spent        	hexutil.Uint64
+	Sig          	hexutil.Bytes
+	Hash        	common.Hash `json:"txhash"`
 }
 
 type Transactions []interface{}
