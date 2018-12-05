@@ -39,14 +39,14 @@ type Transaction struct {
 
 //marshalling store external type, if different
 type transactionMarshaling struct {
-	TokenID      	hexutil.Uint64
-	Denomination 	hexutil.Uint64
-	DepositIndex 	hexutil.Uint64
-	PrevBlock    	hexutil.Uint64
-	Allowance    	hexutil.Uint64
-	Spent        	hexutil.Uint64
-	Sig          	hexutil.Bytes
-	Hash        	common.Hash `json:"txhash"`
+	TokenID      hexutil.Uint64
+	Denomination hexutil.Uint64
+	DepositIndex hexutil.Uint64
+	PrevBlock    hexutil.Uint64
+	Allowance    hexutil.Uint64
+	Spent        hexutil.Uint64
+	Sig          hexutil.Bytes
+	Hash         common.Hash `json:"txhash"`
 }
 
 type Transactions []interface{}
@@ -66,7 +66,7 @@ func NewTransaction(t *Token, tinfo *TokenInfo, recipient *common.Address) *Tran
 		TokenID:      tokenKey(tinfo.DepositIndex, tinfo.Denomination, tinfo.Depositor),
 		Denomination: tinfo.Denomination,
 		DepositIndex: tinfo.DepositIndex,
-		PrevBlock:    0, // t.LastBlock,
+		PrevBlock:    0,
 		PrevOwner:    &(t.Owner),
 		Recipient:    recipient,
 		Allowance:    t.Allowance,
@@ -90,9 +90,7 @@ func (tx *Transaction) Size() common.StorageSize {
 
 //recoverPlain
 func (tx *Transaction) GetSigner() (common.Address, error) {
-	//shortHash := tx.ShortHash()
-	//signedHash := signHash(shortHash.Bytes())
-	log.Info("GetSigner", "txbyte", tx.Hex(), "ShortHash", tx.ShortHash().Hex(), "signedHash", common.Bytes2Hex(signHash(tx.ShortHash().Bytes())))
+	log.Debug("GetSigner", "txbyte", tx.Hex(), "ShortHash", tx.ShortHash().Hex(), "signedHash", common.Bytes2Hex(signHash(tx.ShortHash().Bytes())))
 	recoveredPub, err := crypto.Ecrecover(signHash(tx.ShortHash().Bytes()), tx.Sig)
 	if err != nil {
 		return common.Address{}, err

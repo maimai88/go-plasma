@@ -103,7 +103,7 @@ func (self *PlasmaTxPool) addTransactionToPool(tx *Transaction) (err error) {
 func (self *PlasmaTxPool) RemoveTransaction(txhash common.Hash) (err error) {
 	for i, PlasmaTx := range self.txpool {
 		if bytes.Compare(PlasmaTx.Hash().Bytes(), txhash.Bytes()) == 0 {
-			log.Info("RemoveTransaction", "txhash", txhash)
+			log.Info("RemoveTransaction: Plasma", "txhash", txhash.Hex())
 			self.txpool = append(self.txpool[:i], self.txpool[i+1:]...)
 			return nil
 		}
@@ -111,7 +111,7 @@ func (self *PlasmaTxPool) RemoveTransaction(txhash common.Hash) (err error) {
 
 	for k, AnchorTx := range self.wtxpool {
 		if bytes.Compare(AnchorTx.Hash().Bytes(), txhash.Bytes()) == 0 {
-			log.Info("RemoveTransaction: Anchor", "txhash", txhash)
+			log.Info("RemoveTransaction: Anchor", "txhash", txhash.Hex())
 			self.wtxpool = append(self.wtxpool[:k], self.wtxpool[k+1:]...)
 			return nil
 		}

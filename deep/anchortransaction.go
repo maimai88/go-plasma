@@ -122,8 +122,7 @@ func (tx *AnchorTransaction) SignTx(priv *ecdsa.PrivateKey) (err error) {
 		return err
 	}
 
-	//shortHash := tx.ShortHash()
-	log.Info("AnchorTransaction:SignTX | Hash ", "shortHash", tx.ShortHash().Hex(), "signedHash", common.Bytes2Hex(signHash(tx.ShortHash().Bytes())), "tx", tx)
+	log.Debug("AnchorTransaction:SignTX | Hash ", "shortHash", tx.ShortHash().Hex(), "signedHash", common.Bytes2Hex(signHash(tx.ShortHash().Bytes())), "tx", tx)
 	sig, err := crypto.Sign(signHash(tx.ShortHash().Bytes()), priv)
 	if err != nil {
 		return err

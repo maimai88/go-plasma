@@ -155,12 +155,12 @@ func (minter *minterPOA) mintNewBlock() error {
 	committedTxesCount := len(committedTxes)
 
 	if committedTxesCount != len(allAddrTxes) {
-		log.Info("[deep:poa:mintNewBlock] not all txns submitted were committed")
+		log.Debug("[deep:poa:mintNewBlock] not all txns submitted were committed")
 		//No error returned, just log as fyi
 	}
 
 	if committedTxesCount == 0 {
-		//log.Info("[deep:poa:mintNewBlock] Not minting a new block since there are no pending transactions")
+		log.Trace("[deep:poa:mintNewBlock] Not minting a new block since there are no pending transactions")
 		return nil //No Error, just return b/c there are no
 	}
 	if minter.remoteStorage == nil {
@@ -188,7 +188,7 @@ func (minter *minterPOA) mintNewBlock() error {
 
 	err = minter.chain.WriteBlock(block)
 	if err != nil {
-		log.Info("[deep:poa:mintNewBlock] Error Writing Block")
+		log.Error("[deep:poa:mintNewBlock] Error Writing Block")
 		return fmt.Errorf("[deep:poa:mintNewBlock] %s", err)
 	}
 
@@ -202,22 +202,23 @@ func (minter *minterPOA) mintNewBlock() error {
 	for _, tx := range committedTxes {
 		err := minter.deepchain.TxPool().RemoveTransaction(tx.Hash())
 		if err != nil {
-			log.Info(fmt.Sprintf("[deep:poa:mintNewBlock] RemoveTransaction failed at mintNewBlock on hash: %x", tx.Hash()))
+			log.Warn(fmt.Sprintf("[deep:poa:mintNewBlock] RemoveTransaction failed at mintNewBlock on hash: %x", tx.Hash()))
 			return fmt.Errorf("[deep:poa:mintNewBlock] %s", err)
 		}
 	}
 
 	if block != nil {
-		log.Info("🔨  [deep:poa:mintNewBlock] Mined block", "number", block.Number(), "hash", fmt.Sprintf("%x", block.Hash().Bytes()[:4]), "head", minter.head)
+		log.Info("🔨  [deep:poa:mintNewBlock] Mined block", "number", block.Number(), "hash", block.Hash().Hex(), "head", minter.head)
 	} else {
 		fmt.Printf("[deep:poa:mintNewBlock] did NOT mine block %d\n", block.Number())
 	}
 
-	host, _ := os.Hostname()
-	log.Info(fmt.Sprintf("[minter.go:mintNewBlock] HOST: %s ChainType %s ChainID: %d", host, minter.chain.ChainType(), minter.chain.GetBlockChainID()))
+	if minter.head == 1 {
+		host, _ := os.Hostname()
+		log.Info(fmt.Sprintf("[minter.go:mintNewBlock] HOST: %s ChainType %s ChainID: %d", host, minter.chain.ChainType(), minter.chain.GetBlockChainID()))
+	}
 
 	return nil
-
 }
 
 // current implementation drops an uncommitted transaction and goes on trying to commit the next ones in the txes pool.
@@ -230,8 +231,7 @@ func (env *minterPOA) commitTransactions(txes Transactions, bc BlockChain) Trans
 		err := env.commitTransaction(tx, bc)
 		switch {
 		case err != nil:
-			log.Info("TX failed, mark for removal", "hash", tx.Hash(), "err", err)
-			fmt.Printf("[deep:poa:commitTransactions] err when committing this txn: %s\n", err)
+			log.Warn("TX failed, mark for removal", "hash", tx.Hash().Hex(), "err", err)
 			env.deepchain.TxPool().RemoveTransaction(tx.Hash())
 			i--       //re-do index i, b/c previous index i was removed.
 			numtxns-- //update number of loops
@@ -248,7 +248,7 @@ func (env *minterPOA) commitTransaction(tx Transaction, bc BlockChain) error {
 
 	err := bc.ApplyTransaction(env.state, tx)
 	if err != nil { //transaction failed
-		log.Info("Error Applying Transaction: ", "error", err)
+		log.Warn("Error Applying Transaction: ", "error", err)
 		reverterr := env.state.RevertToSnapshot(snapshot) //this is in the wrong place, probably.
 		if reverterr != nil {                             //revert failed
 			return fmt.Errorf("[deep:poa:commitTransaction] %s, %s", err, reverterr)

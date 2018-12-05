@@ -92,7 +92,6 @@ func New(ctx *node.ServiceContext, config *Config, simulated bool) (*PlasmaChain
 
 	self.ApiBackend = &PlasmaApiBackend{&self}
 
-	//TODO: removing loadLastState from new
 	if err := self.loadLastState(self.config.ClearLastState); err != nil {
 		return nil, err
 	}
@@ -172,32 +171,21 @@ func (self *PlasmaChain) GetBlock(headerHash common.Hash, number uint64) (b deep
 }
 
 func (self *PlasmaChain) HasBlock(h common.Hash, number uint64) bool {
-	data, err := self.getBlockByNumber(number)
-	if err != nil {
-		log.Info("Error", "err", err)
-		return false
+	block, err := self.getBlockByNumber(number)
+	if block != nil {
+		return true
+	} else {
+		block, err = self.getBlockByHash(h)
+		if block != nil {
+			return true
+		}
 	}
-	if data == nil {
-		return false
-	}
-	return true
+	log.Warn("HasBlock", "blockhash", h.Hex(), "bn", number, "err", err)
+	return false
 }
 
 func (self *PlasmaChain) GetBlockByHash(h common.Hash) (b deep.Block, err error) {
-	key := h.Bytes()
-	val, ok, err := self.ChunkStore.GetChunk(key)
-	if err != nil {
-		log.Info("Error", "err", err)
-		return nil, err
-	} else if !ok {
-		log.Info("PlasmaChain:GetBlockByHash | chunk not found", "err", err)
-		return nil, nil
-	} else if len(val) == 0 {
-		log.Info("PlasmaChain:GetBlockByHash | chunk found but empty", "err", err)
-		return nil, nil
-	}
-	block := FromChunk(val)
-	return block, nil
+	return self.getBlockByHash(h)
 }
 
 func (self *PlasmaChain) GetBlockByNumber(blockNumber rpc.BlockNumber) (b deep.Block, err error) {
@@ -221,15 +209,10 @@ func (self *PlasmaChain) InsertChainForPOA(chain deep.Blocks) (int, error) {
 
 	self.currentBlock = lastblock.(*Block)
 	self.blockNumber = self.currentBlock.Number()
-	data, err := self.currentBlock.Encode()
 
-	if err != nil {
-		log.Error("InsertChainForPOA: blockHash Encode", "ERROR", err)
+	if err := self.setHeadBlockHash(self.blockchainID, self.currentBlock.Hash()); err != nil {
 		return 0, err
 	}
-
-	blockHash := deep.Keccak256(data)
-	self.setHeadBlockHash(self.blockchainID, common.BytesToHash(blockHash))
 
 	log.Debug("🔨 block to mine", "self.currentBlock number", self.currentBlock.Number(), "self.blockNumber", self.blockNumber)
 	if self.config.UseLayer1 {
@@ -407,7 +390,7 @@ func (self *PlasmaChain) ApplyAnchorTransaction(s *StateDB, anchorTx *deep.Ancho
 				chainObj.AddOwner(newOwner)
 				log.Info("Add New Owner", "ChainID", chainID, "Seq#", chainObj.OwnerCount(), "Addr", signer.Hex())
 			} else {
-				log.Info("Owner Already Exist", "ChainID", chainID, "Addr", signer.Hex())
+				log.Warn("Owner Already Exist", "ChainID", chainID, "Addr", signer.Hex())
 			}
 		}
 
@@ -438,7 +421,7 @@ func (self *PlasmaChain) ApplyAnchorTransaction(s *StateDB, anchorTx *deep.Ancho
 				chainObj.AddOwner(newOwner)
 				log.Info("Add New Owner", "ChainID", chainID, "Seq#", chainObj.OwnerCount(), "Addr", newOwner.Hex())
 			} else {
-				log.Info("[AddOwner] Owner Already Exist", "ChainID", chainID, "Addr", newOwner.Hex())
+				log.Warn("[AddOwner] Owner Already Exist", "ChainID", chainID, "Addr", newOwner.Hex())
 			}
 		}
 
@@ -452,7 +435,7 @@ func (self *PlasmaChain) ApplyAnchorTransaction(s *StateDB, anchorTx *deep.Ancho
 				chainObj.RemoveOwner(addr)
 				log.Info("Remove Owner", "ChainID", chainID, "Total Owner", chainObj.OwnerCount(), "Addr", addr.Hex())
 			} else {
-				log.Info("[RemoveOwner] Owner Doesn't Exist", "ChainID", chainID, "Addr", addr.Hex())
+				log.Warn("[RemoveOwner] Owner Doesn't Exist", "ChainID", chainID, "Addr", addr.Hex())
 			}
 		}
 	}
@@ -488,7 +471,7 @@ func (self *PlasmaChain) ApplyAnchorTransaction(s *StateDB, anchorTx *deep.Ancho
 	s.atxList[chainID] = aobj
 	err = self.StoreAnchorTransaction(anchorTx, self.blockNumber+1)
 	if err != nil {
-		log.Info("Anchor TX: apply", "Status", "StoreAnchorTransaction failed!!")
+		log.Error("Anchor TX: apply", "Status", "StoreAnchorTransaction failed!!")
 		return err
 	}
 	return nil
@@ -502,13 +485,13 @@ func (self *PlasmaChain) StoreAnchorTransaction(tx *deep.AnchorTransaction, bloc
 
 	enc, err := rlp.EncodeToBytes(&tx)
 	if err != nil {
-		log.Info("PlasmaChunkstore:StoreAnchorTransaction", "Encode", common.Bytes2Hex(enc), "ERR", err)
+		log.Error("PlasmaChunkstore:StoreAnchorTransaction", "Encode", common.Bytes2Hex(enc), "ERR", err)
 	} else {
 		log.Info("PlasmaChunkstore:StoreAnchorTransaction", "Encode", common.Bytes2Hex(enc))
 	}
 
 	err = self.ChunkStore.SetChunk(key, txbytes)
-	log.Info("PlasmaChunkstore:StoreAnchorTransaction", "key", common.Bytes2Hex(key), "txbytes", common.Bytes2Hex(txbytes))
+	log.Debug("PlasmaChunkstore:StoreAnchorTransaction", "key", common.Bytes2Hex(key), "txbytes", common.Bytes2Hex(txbytes))
 	if err != nil {
 		return err
 	}
@@ -560,7 +543,7 @@ func (self *PlasmaChain) ApplyPlasmaTransaction(s *StateDB, tx *Transaction) (er
 		//token transfer
 		sobj, err = s.getTokenObject(tx.TokenID)
 		if err != nil {
-			log.Info("Token Transfer Problem 2", "tokenID", tx.TokenID, "err", err)
+			log.Error("Token Transfer Problem 2", "tokenID", tx.TokenID, "err", err)
 			return err
 		}
 
@@ -571,24 +554,24 @@ func (self *PlasmaChain) ApplyPlasmaTransaction(s *StateDB, tx *Transaction) (er
 				if sobj.Denomination() > 0 && !sobj.deleted {
 					//special case for first transfer, allow it bypass prevblock check if token does exists
 				} else {
-					log.Info("Token Transfer Problem 2a", "sobj prevBlock", sobj.PrevBlock(), "tx PrevBlock", tx.PrevBlock)
+					log.Error("Token Transfer Problem 2a", "sobj prevBlock", sobj.PrevBlock(), "tx PrevBlock", tx.PrevBlock)
 					return fmt.Errorf("Invalid fisrt transfer")
 				}
 			} else {
-				log.Info("Token Transfer Problem 2b", "sobj prevBlock", sobj.PrevBlock(), "tx PrevBlock", tx.PrevBlock)
+				log.Error("Token Transfer Problem 2b", "sobj prevBlock", sobj.PrevBlock(), "tx PrevBlock", tx.PrevBlock)
 				return fmt.Errorf("Invalid PrevBlock")
 			}
 		}
 
 		if sobj.Owner() != *tx.PrevOwner {
 			//Invalid Owner
-			log.Info("Token Transfer Problem 3", "sobj owner", sobj.Owner(), "tx prevowner", *tx.PrevOwner)
+			log.Error("Token Transfer Problem 3", "sobj owner", sobj.Owner(), "tx prevowner", *tx.PrevOwner)
 			return fmt.Errorf("Unauthorized token transfer")
 		}
 
 		if !sobj.ValidDemination() || (sobj.Denomination() != tx.Denomination) || (tx.Denomination != tx.Spent+tx.Allowance+tx.balance) {
 			//Invalid token amount
-			log.Info("Token Transfer Problem 4", "sobj", sobj.ValidDemination(), "denom", sobj.Denomination() == tx.Denomination, "tx", tx.Denomination == tx.Spent+tx.Allowance+tx.balance)
+			log.Error("Token Transfer Problem 4", "sobj", sobj.ValidDemination(), "denom", sobj.Denomination() == tx.Denomination, "tx", tx.Denomination == tx.Spent+tx.Allowance+tx.balance)
 			return fmt.Errorf("Invalid token amount")
 		}
 
@@ -607,7 +590,7 @@ func (self *PlasmaChain) ApplyPlasmaTransaction(s *StateDB, tx *Transaction) (er
 			//operator Withdrawal, which is
 			log.Debug("Change STATE OBJECT", "Spent", tx.Spent)
 			if tx.Spent+tx.Allowance != sobj.Spent()+sobj.Allowance() {
-				log.Info("Token Transfer Problem 5", "Spent", tx.Spent)
+				log.Warn("Token Transfer Problem 5", "Spent", tx.Spent)
 				//attempt to modify {allowance, spent, balance} at the same time
 				//TODO: retrun proper error msg
 				//return err
@@ -622,7 +605,7 @@ func (self *PlasmaChain) ApplyPlasmaTransaction(s *StateDB, tx *Transaction) (er
 			consumption := sobj.Balance() - tx.balance
 			log.Debug("Change STATE OBJECT", "balanceupdate", tx.balance)
 			if tx.balance+tx.Allowance != sobj.Balance()+sobj.Allowance() {
-				log.Info("Token Transfer Problem 6", "balanceupdate", tx.Spent)
+				log.Warn("Token Transfer Problem 6", "balanceupdate", tx.Spent)
 				//attempt to modify {allowance, spent, balance} at the same time
 				//TODO: retrun proper error msg
 				//return err
@@ -725,8 +708,6 @@ func WriteBlock(db deep.StorageLayer, block deep.Block) error {
 	header := block.Header()
 
 	WriteHeader(db, header)
-	//body := block.Body()
-	//WriteBody(db, block.Hash(), block.Number(), body)
 
 	BlockKey := deep.Keccak256([]byte(fmt.Sprintf("plasma%d", block.Number())))
 	data, err := block.Encode()
@@ -744,11 +725,9 @@ func WriteBlock(db deep.StorageLayer, block deep.Block) error {
 		log.Debug(fmt.Sprintf("WriteBlock key: %x block: %+v", BlockKey, block))
 	}
 
-	//Critical bug: mismatch between block bs block.Hash() resulting resource update here
-	blockHash := deep.Keccak256(data)
-	err = db.SetChunk(blockHash, data)
+	err = db.SetChunk(block.Hash().Bytes(), data)
 	if err != nil {
-		log.Error("Error Storing blockHash Chunk", "error", err, "HeadHash key", common.Bytes2Hex(blockHash), "data", common.Bytes2Hex(data))
+		log.Error("Error Storing blockHash Chunk", "error", err, "HeadHash key", block.Hash().Hex(), "data", common.Bytes2Hex(data))
 		return err
 	}
 	return nil
@@ -759,46 +738,23 @@ func WriteHeader(db deep.StorageLayer, header deep.Header) error {
 	headerhash := header.Hash().Bytes()
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
-		log.Info(fmt.Sprintf("Error Encoding Bytes %+v", err))
+		log.Error(fmt.Sprintf("Error Encoding Bytes %+v", err))
 	}
 
 	err = db.SetChunk(headerKey, headerhash)
 	if err != nil {
-		log.Info("Error Storing Chunk", "error", err)
+		log.Error("Error Storing headerKey Chunk", "error", err)
 		return err
 	}
 	err = db.SetChunk(headerhash, data)
 	if err != nil {
-		log.Info("Error Storing Chunk", "error", err)
+		log.Error("Error Storing headerhash Chunk", "error", err)
 		return err
 	}
 	log.Debug("WriteHeader", "headerKey", common.Bytes2Hex(headerKey), "headerhash", common.Bytes2Hex(headerhash), "RLP", common.Bytes2Hex(data))
 	//WriteCanonicalHash(db, header.Hash(), header.Number())
 	return nil
 }
-
-/* Write the whole block instead
-func (self *PlasmaChain) WriteBody(hash common.Hash, number uint64, body deep.Body) {
-	if value, ok := body.(*Block); ok {
-		data, err := rlp.EncodeToBytes(value)
-		bodyhash := crypto.Keccak256(data[:])
-		if err != nil {
-		}
-		self.RemoteStorage.StoreChunk(bodyhash, data)
-	}
-}
-
-func WriteBody(db deep.RemoteStorage, hash common.Hash, number uint64, body deep.Body) {
-	data, err := rlp.EncodeToBytes(body)
-	bodyhash := crypto.Keccak256(data[:])
-	db.SetChunk(bodyhash, data)
-	if err != nil {
-		log.Info("Storing Body failed", "data", data)
-	}
-	log.Info("Storing body", "body", body, "hash", hash, "number", number, "hashbytes", hash.Bytes())
-}
-
-*/
 
 func (bc *PlasmaChain) PostChainEvents(events []interface{}) {
 	log.Debug(fmt.Sprintf("PostChainEvents %v", events))
@@ -825,7 +781,6 @@ func (bc *PlasmaChain) PostChainEvents(events []interface{}) {
 func (self *PlasmaChain) ProcessPlasmaBlock(block *Block) (err error) {
 	log.Debug("[(self *PlasmaChain) ProcessPlasmaBlock]", "blockNumber", block.header.BlockNumber)
 	self.blockNumber = block.header.BlockNumber
-	// TODO: validate sig
 
 	// remove txs from plasmaTxPool
 	covered := make(map[common.Hash]bool)
@@ -963,15 +918,14 @@ func (self *PlasmaChain) getBlockByNumber(blockNumber uint64) (b deep.Block, err
 	k := deep.Keccak256([]byte(fmt.Sprintf("plasma%d", blockNumber)))
 	v, ok, err := self.ChunkStore.GetChunk(k)
 	if err != nil {
-		log.Info(fmt.Sprintf("Error retrieve block %d with key [%x] | {%+v}", blockNumber, k, err))
+		log.Error(fmt.Sprintf("Error retrieve block %d with key [%x] | {%+v}", blockNumber, k, err))
 		return b, err
 	} else if !ok {
-		log.Info(fmt.Sprintf("Attempt to retrieve block %d with key [%x] and key not found", blockNumber, k))
+		log.Warn(fmt.Sprintf("Attempt to retrieve block %d with key [%x] and key not found", blockNumber, k))
 		return b, nil
 	} else if len(v) == 0 {
 		return b, fmt.Errorf("Attempt to retrieve block %d with key [%x] and got nothing back", blockNumber, k)
 	}
-	log.Info(fmt.Sprintf("Successfully retrieved block %d with key [%x]", blockNumber, k))
 	bl := FromChunk(v)
 	log.Debug("getBlockByNumber", "bn", blockNumber, "bl", bl.String())
 	_, err = bl.ValidateBlock()
@@ -985,20 +939,20 @@ func (self *PlasmaChain) getBlockHeaderByNumber(blockNumber uint64) (h Header, e
 	headerKey := deep.Keccak256([]byte(fmt.Sprintf("plasmaHeader%d", blockNumber)))
 	headerHash, ok, err := self.ChunkStore.GetChunk(headerKey)
 	if err != nil {
-		log.Debug("Error retrieving chunk", "error", err)
+		log.Error("Error retrieving chunk", "error", err)
 		return h, err
 	} else if !ok {
-		log.Debug("headerKey chunk not found")
+		log.Warn("headerKey chunk not found", "blockNumber", blockNumber)
 		return h, nil
 	} else if len(headerHash) == 0 {
 		return h, fmt.Errorf("try to retrieve [block #%d] headerKey [%x] and got nothing back", blockNumber, headerKey)
 	}
 	data, ok, err := self.ChunkStore.GetChunk(headerHash)
 	if err != nil {
-		log.Debug("Error retrieving chunk", "error", err)
+		log.Error("Error retrieving chunk", "error", err)
 		return h, err
 	} else if !ok {
-		log.Debug("headerHash chunk not found")
+		log.Warn("headerHash chunk not found", "headerHash", common.Bytes2Hex(headerHash))
 		return h, fmt.Errorf("[block #%d] headerHash [%x] chunk not found", blockNumber, headerHash)
 	} else if len(data) == 0 {
 		return h, fmt.Errorf("try to retrieve [block #%d] headerHash [%x] and got nothing back", blockNumber, headerHash)
@@ -1022,7 +976,6 @@ func (self *PlasmaChain) getBlockByHash(blockHash common.Hash) (b deep.Block, er
 	} else if len(v) == 0 {
 		return b, fmt.Errorf("Attempt to retrieve block with blockhash [%x] and got nothing back", blockHash)
 	}
-	log.Debug(fmt.Sprintf("[backend.go:getBlockByHash] Successfully retrieved block with blockhash [%x]", blockHash))
 	bl := FromChunk(v)
 	log.Debug("[backend.go:getBlockByHash] getBlockByHash", "blockHash", blockHash.Hex(), "bl", bl.String(), "headerHash", bl.Header().Hash())
 	_, err = bl.ValidateBlock()
@@ -1037,7 +990,6 @@ func (self *PlasmaChain) getPlasmaToken(tokenID, blockNumber uint64) (t *Token, 
 	if err != nil {
 		return t, err
 	}
-	log.Debug("PLASMAAPI: getPlasmaToken", "Header", h)
 	s := NewStateDB(self.ChunkStore, h.Hash(), self.operatorKey)
 	t, err = s.GetToken(tokenID)
 	if err != nil {
@@ -1048,18 +1000,17 @@ func (self *PlasmaChain) getPlasmaToken(tokenID, blockNumber uint64) (t *Token, 
 }
 
 func (self *PlasmaChain) getPlasmaBalance(address common.Address, blockNumber uint64) (acct *Account, err error) {
-	log.Debug("PLASMAAPI: getPlasmaBalance", "address", address)
 	h, err := self.getBlockHeaderByNumber(blockNumber)
 	if err != nil {
 		return acct, err
 	}
-	log.Debug("PLASMAAPI: getPlasmaBalance", "Header", h)
 	s := NewStateDB(self.ChunkStore, h.Hash(), self.operatorKey)
 
 	acct, err = s.GetAccount(address)
 	if err != nil {
 		return acct, err
 	}
+	log.Debug("PLASMAAPI: getPlasmaBalance", "address", address, "acct", acct.String())
 	return acct, nil
 }
 
@@ -1078,8 +1029,7 @@ func (self *PlasmaChain) getProofbyTokenID(tokenIndex uint64, bn uint64) (tokenI
 }
 
 func (self *PlasmaChain) getHash(index, bn uint64, treeType int) (hashKey []byte, proof *smt.Proof, err error) {
-	log.Debug("Internal getSHash", "index", index, "BN", bn, "type", treeType)
-
+	log.Trace("Internal getSHash", "index", index, "BN", bn, "type", treeType)
 	h, err := self.getBlockHeaderByNumber(bn)
 	if err != nil {
 		return hashKey, proof, err
@@ -1108,7 +1058,6 @@ func (self *PlasmaChain) getHash(index, bn uint64, treeType int) (hashKey []byte
 	}
 
 	v0, found, pr, _, _, err := tree.Get(smt.UIntToByte(index))
-	//log.Info("Get SMT All", "proof", p)
 	if pr == nil || !found {
 		return hashKey, pr, fmt.Errorf("Not found")
 	} else {
@@ -1120,13 +1069,13 @@ func (self *PlasmaChain) getTokenInfo(tokenID uint64) (tInfo *TokenInfo, err err
 	key := deep.Keccak256([]byte(fmt.Sprintf("plasmaTokenInfo%x", tokenID)))
 	infoByte, ok, err := self.ChunkStore.GetChunk(key)
 	if err != nil {
-		log.Debug("[PlasmaChain:GetTokenInfo] GetChunk Error", "error", err)
+		log.Error("[PlasmaChain:GetTokenInfo] GetChunk Error", "error", err, "tokenID", tokenID)
 		return tInfo, err
 	} else if !ok {
-		log.Debug("[PlasmaChain:GetTokenInfo] GetChunk - Chunk not found")
+		log.Warn("[PlasmaChain:GetTokenInfo] GetChunk - Chunk not found", "tokenID", tokenID)
 		return tInfo, nil
 	} else if len(infoByte) == 0 {
-		log.Debug("[PlasmaChain:GetTokenInfo] GetChunk - Chunk found but empty")
+		log.Error("[PlasmaChain:GetTokenInfo] GetChunk - Chunk found but empty", "tokenID", tokenID)
 		return tInfo, fmt.Errorf("tokenID %x missing", tokenID)
 	}
 
@@ -1141,13 +1090,13 @@ func (self *PlasmaChain) getTransaction(txhash common.Hash) (tx *Transaction, bl
 	key := append([]byte("raw"), txhash.Bytes()...)
 	val, ok, err := self.ChunkStore.GetChunk(key)
 	if err != nil {
-		log.Info("PlasmaChain:getTransaction - Error", "error", err)
+		log.Error("PlasmaChain:getTransaction - Error", "error", err, "txhash", txhash.Hex())
 		return nil, blockNumber, err
 	} else if !ok {
-		log.Info("PlasmaChain:getTransaction - Chunk not found")
+		log.Warn("PlasmaChain:getTransaction - Chunk not found", "txhash", txhash.Hex())
 		return nil, blockNumber, err
 	} else if len(val) == 0 {
-		return nil, blockNumber, fmt.Errorf("tx %x can't be empty ", key)
+		return nil, blockNumber, fmt.Errorf("txhash [%s] (key %x) can't be empty ", txhash.Hex(), key)
 	}
 
 	tx, err = DecodeRLPTransaction(val)
@@ -1178,13 +1127,13 @@ func (self *PlasmaChain) getAnchorTransaction(txhash common.Hash) (anchorTx *dee
 	key := append([]byte("raw"), txhash.Bytes()...)
 	val, ok, err := self.ChunkStore.GetChunk(key)
 	if err != nil {
-		log.Info("PlasmaChain:getAnchorTransaction - Error", "error", err)
+		log.Error("PlasmaChain:getAnchorTransaction - Error", "error", err, "txhash", txhash.Hex())
 		return nil, blockNumber, err
 	} else if !ok {
-		log.Info("PlasmaChain:getAnchorTransaction - Chunk not found")
+		log.Warn("PlasmaChain:getAnchorTransaction - Chunk not found", "txhash", txhash.Hex())
 		return nil, blockNumber, err
 	} else if len(val) == 0 {
-		return nil, blockNumber, fmt.Errorf("tx %x can't be empty ", key)
+		return nil, blockNumber, fmt.Errorf("txhash [%s] (key %x) can't be empty ", txhash.Hex(), key)
 	}
 
 	// mirror decoding
@@ -1207,7 +1156,7 @@ func (self *PlasmaChain) getAnchorTransaction(txhash common.Hash) (anchorTx *dee
 	} else if !ok {
 		return nil, blockNumber, nil
 	} else if len(val2) == 0 {
-		return nil, blockNumber, fmt.Errorf("tx key2 %x can't be empty ", key2)
+		return nil, blockNumber, fmt.Errorf("txhash [%s] (key2 %x) can't be empty ", txhash.Hex(), key2)
 	}
 	blockNumber = deep.BytesToUint64(val2)
 	return tx, blockNumber, nil
@@ -1252,7 +1201,7 @@ func (self *PlasmaChain) getHeadBlockHash(chainID uint64) (headHash common.Hash,
 		//log.Error("Plasma:getHeadBlockHash - Error", "error", err)
 		return headHash, ok, err
 	} else if !ok {
-		//log.Info("Plasma:getHeadBlockHash - Chunk not found")
+		//log.Warn("Plasma:getHeadBlockHash - Chunk not found")
 		//return headHash, ok, fmt.Errorf("chainID %x headHash Chunk not found", chainID)
 		return headHash, ok, err
 	} else if len(val) > 0 && len(val) != 32 {
@@ -1270,7 +1219,7 @@ func (self *PlasmaChain) getHashBlockNumber(chainID uint64, headHash common.Hash
 		//log.Error("Plasma:getHashBlockNumber - Error", "error", err)
 		return blockNumber, ok, err
 	} else if !ok {
-		//log.Info("Plasma:getHashBlockNumber - Chunk not found")
+		//log.Warn("Plasma:getHashBlockNumber - Chunk not found")
 		//return blockNumber, ok, fmt.Errorf("chainID %x headHash Chunk not found", chainID)
 		return blockNumber, ok, err
 		/*
@@ -1290,7 +1239,7 @@ func (self *PlasmaChain) getCanonicalHash(chainID uint64, blockNumber uint64) (c
 		//log.Error("Plasma:getCanonicalHash - Error", "error", err)
 		return canonicalHash, ok, err
 	} else if !ok {
-		//log.Info("Plasma:getCanonicalHash - Chunk not found")
+		//log.Warn("Plasma:getCanonicalHash - Chunk not found")
 		//return canonicalHash, ok, fmt.Errorf("chainID %x CanonicalHash Chunk not found", chainID)
 		return canonicalHash, ok, err
 	} else if len(val) > 0 && len(val) != 32 {
@@ -1415,7 +1364,7 @@ func (self *PlasmaChain) SendPlasmaTransaction(tx *Transaction) (txhash common.H
 	}
 	err = self.validateTx(tx)
 	if err != nil {
-		log.Debug("SendPlasmaTransaction ERR:", "err", err)
+		log.Error("SendPlasmaTransaction ERR:", "err", err)
 		return txhash, err
 	}
 
@@ -1432,7 +1381,7 @@ func (self *PlasmaChain) SendAnchorTransaction(tx *deep.AnchorTransaction) (txha
 
 	err = self.validateTx(tx)
 	if err != nil {
-		log.Debug("SendAnchorTransaction ERR:", "err", err)
+		log.Error("SendAnchorTransaction ERR:", "err", err)
 		return txhash, err
 	}
 
@@ -1464,22 +1413,22 @@ func (self *PlasmaChain) GetPlasmaBalance(address common.Address, blockNumber rp
 
 func (self *PlasmaChain) GetPlasmaBlock(blockNumber rpc.BlockNumber) (block *Block) {
 	// TODO: treat -1, -2 cases
-	log.Info("PLASMAAPI: GetPlasmaBlock", "blockNumber", blockNumber)
 	b, err := self.getBlockByNumber(uint64(blockNumber))
 	if err != nil {
-		log.Info("PLASMAAPI: GetPlasmaBlock", "bn", blockNumber, "ERROR", err)
+		log.Error("PLASMAAPI: GetPlasmaBlock", "bn", blockNumber, "ERROR", err)
 		return nil
 	}
 	if b == nil {
-		log.Info("PLASMAAPI: GetPlasmaBlock", "bn", blockNumber, "ERROR", "Not Found", "Verbose Error", err)
+		log.Warn("PLASMAAPI: GetPlasmaBlock", "bn", blockNumber, "ERROR", "Not Found", "Verbose Error", err)
 		return nil
 	}
+	log.Debug("PLASMAAPI: GetPlasmaBlock", "blockNumber", blockNumber)
 	b0 := b.(Block)
 	return &b0
 }
 
 func (self *PlasmaChain) GetPlasmaBloomFilter(hash common.Hash) (b []byte, err error) {
-	log.Debug("PLASMAAPI: GetPlasmaBloomFilter", "hash", hash)
+	log.Debug("PLASMAAPI: GetPlasmaBloomFilter", "bloomID", hash.Hex())
 	key := hash.Bytes()
 	val, ok, err := self.ChunkStore.GetChunk(key)
 	if err != nil {
@@ -1494,9 +1443,8 @@ func (self *PlasmaChain) GetPlasmaBloomFilter(hash common.Hash) (b []byte, err e
 
 //Doing a quick, non-authoritative check to avoid excessive chunk call
 func (self *PlasmaChain) GetPlasmaTransactionReceipt(hash common.Hash) (tx *Transaction, blockNumber uint64, receipt uint8, err error) {
-	log.Debug("PLASMAAPI: GetPlasmaTransactionReceipt", "hash", hash)
 	txn, bn, err := self.getTransaction(hash)
-	log.Debug("GetPlasmaTransactionReceipt", "bn", bn, "tx", txn.String())
+	log.Debug("PLASMAAPI: GetPlasmaTransactionReceipt", "txhash", hash.Hex(), "bn", bn, "tx", txn.String())
 	if err != nil {
 		return tx, blockNumber, receipt, err
 	} else if txn == nil || bn == 0 {
@@ -1508,7 +1456,7 @@ func (self *PlasmaChain) GetPlasmaTransactionReceipt(hash common.Hash) (tx *Tran
 }
 
 func (self *PlasmaChain) GetPlasmaTransactionProof(hash common.Hash) (tokenID uint64, txbyte []byte, proof *smt.Proof, blockNumber uint64, err error) {
-	log.Debug("GetPlasmaTransactionProof", "hash", hash)
+	log.Debug("PLASMAAPI: GetPlasmaTransactionProof", "hash", hash)
 	tx, bn, err := self.getTransaction(hash)
 	if err != nil {
 		return tokenID, txbyte, proof, blockNumber, err
@@ -1532,7 +1480,7 @@ func (self *PlasmaChain) GetPlasmaTransactionProof(hash common.Hash) (tokenID ui
 }
 
 func (self *PlasmaChain) GetPlasmaTransactionFromPool(hash common.Hash) (tx *Transaction) {
-	log.Debug("PLASMAAPI: GetPlasmaTransactionFromPool", "hash", hash)
+	log.Debug("PLASMAAPI: GetPlasmaTransactionFromPool", "txhash", hash.Hex())
 	for _, tx := range self.plasmatxpool.txpool {
 		if bytes.Compare(tx.Hash().Bytes(), hash.Bytes()) == 0 {
 			return tx

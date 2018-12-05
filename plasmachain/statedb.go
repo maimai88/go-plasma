@@ -140,7 +140,7 @@ func (self *StateDB) StorePlasmaBloomFilter(b []byte) (h common.Hash, err error)
 	key := deep.Keccak256(b)
 	err = self.ChunkStore.SetChunk(key, b)
 	if err != nil {
-		log.Info("StoreBlock ERR", "err", err)
+		log.Error("StoreBlock ERR", "err", err)
 		return h, err
 	}
 	return common.BytesToHash(key), nil
@@ -165,7 +165,7 @@ func (self *StateDB) Commit(cs deep.StorageLayer /*blockchainID uint64, */, bloc
 		bloomChunk := NewBloom(tokenIDlist)
 		bloomID, err = self.StorePlasmaBloomFilter(bloomChunk)
 		if err != nil {
-			log.Info("Commit:Bloom", "ERROR", err)
+			log.Error("Commit:Bloom", "ERROR", err)
 			return nil, err
 		}
 	}
@@ -221,7 +221,7 @@ func (self *StateDB) getTokenObject(tokenID uint64) (s *tokenObject, err error) 
 	var t Token
 	err = rlp.Decode(bytes.NewReader(encoded), &t)
 	if err != nil {
-		log.Info("getTokenObject: Decode", "tokenID", tokenID, "v", v, "ERR", err)
+		log.Error("getTokenObject: Decode", "tokenID", tokenID, "v", v, "ERR", err)
 		return nil, err
 	}
 	log.Debug("getTokenObject", "tokenID", tokenID, "t", t.String())
@@ -231,10 +231,10 @@ func (self *StateDB) getTokenObject(tokenID uint64) (s *tokenObject, err error) 
 func (self *StateDB) createDeposit(tokenID uint64, denomination uint64, owner common.Address) (s *tokenObject, err error) {
 	_, isFound, _, _, _, err := self.Storage.tokenStorage.Get(deep.UInt64ToByte(tokenID))
 	if err != nil {
-		log.Info("createDeposit", "tokenID", tokenID, "status", "ERROR")
+		log.Error("createDeposit", "tokenID", tokenID, "status", "ERROR")
 		return s, err
 	} else if isFound {
-		log.Info("createDeposit", "tokenID", tokenID, "status", "ERROR")
+		log.Error("createDeposit", "tokenID", tokenID, "status", "ERROR")
 		return s, fmt.Errorf("tokenID collation")
 	}
 
@@ -258,7 +258,7 @@ func (self *StateDB) updateTokenObject(s *tokenObject) (err error) {
 	v := deep.Keccak256(encoded)
 	err = self.ChunkStore.SetChunk(v, encoded)
 	if err != nil {
-		log.Info("updateTokenObject: StoreChunk", "v", v, "ERROR", err)
+		log.Error("updateTokenObject: StoreChunk", "v", v, "ERROR", err)
 		return err
 	} else {
 		log.Debug("updateTokenObject: StoreChunk", "v", common.Bytes2Hex(v), "encoded", common.Bytes2Hex(encoded))
@@ -281,7 +281,7 @@ func (self *StateDB) updateTokenObject(s *tokenObject) (err error) {
 	}
 
 	if err != nil {
-		log.Info("updateTokenObject", "s", s, "ERROR", err)
+		log.Error("updateTokenObject", "t", s, "ERROR", err)
 		return err
 	}
 	return nil
@@ -308,7 +308,7 @@ func (self *StateDB) getAccountObject(addr common.Address) (a *accountObject, er
 	var acct Account
 	err = rlp.Decode(bytes.NewReader(encoded), &acct)
 	if err != nil {
-		log.Info("getAccountObject: Decode", "account", addr, "shortAddr", shortAddr, "v", v, "ERR", err)
+		log.Error("getAccountObject: Decode", "account", addr, "shortAddr", shortAddr, "v", v, "ERR", err)
 		return nil, err
 	}
 	log.Debug("getAccountObject", "account", addr, "shortAddr", shortAddr, "acct", acct.String())
@@ -320,7 +320,7 @@ func (self *StateDB) createAccount(addr common.Address) (a *accountObject, err e
 	shortAddr := addr[12:20]
 	_, isFound, _, _, _, err := self.Storage.accountStorage.Get(shortAddr)
 	if err != nil {
-		log.Info("createAccount", "acct", addr, "shortAddr", shortAddr, "status", "ERROR")
+		log.Error("createAccount", "acct", addr, "shortAddr", shortAddr, "status", "ERROR")
 		return a, err
 	} else if isFound {
 		log.Debug("createAccount", "acct", addr, "shortAddr", shortAddr, "status", "shortAddr collation")
@@ -386,7 +386,7 @@ func (self *StateDB) updateAccountObject(a *accountObject) (err error) {
 	err = self.ChunkStore.SetChunk(v, encoded)
 
 	if err != nil {
-		log.Info("updateAccountObject: StoreChunk", "v", v, "ERROR", err)
+		log.Error("updateAccountObject: StoreChunk", "v", v, "ERROR", err)
 		return err
 	} else {
 		log.Debug("updateAccountObject: StoreChunk", "v", v, "encoded", encoded)
@@ -400,7 +400,7 @@ func (self *StateDB) updateAccountObject(a *accountObject) (err error) {
 	}
 
 	if err != nil {
-		log.Info("updateAccountObject", "a", a, "ERROR", err)
+		log.Error("updateAccountObject", "a", a, "ERROR", err)
 		return err
 	}
 	return nil
@@ -424,7 +424,7 @@ func (self *StateDB) getChainObject(chainID uint64) (c *chainObject, err error) 
 	var anb anchorBlock
 	err = rlp.Decode(bytes.NewReader(encoded), &anb)
 	if err != nil {
-		log.Info("getChainObject: Decode", "ChainID", chainID, "v", v, "ERR", err)
+		log.Error("getChainObject: Decode", "ChainID", chainID, "v", v, "ERR", err)
 		return nil, err
 	}
 	log.Debug("getChainObject", "ChainID", chainID, "AnchorBlock", anb.String())
@@ -435,10 +435,10 @@ func (self *StateDB) getChainObject(chainID uint64) (c *chainObject, err error) 
 func (self *StateDB) createChain(chainID uint64) (c *chainObject, err error) {
 	_, isFound, _, _, _, err := self.Storage.chainStorage.Get(deep.UInt64ToByte(chainID))
 	if err != nil {
-		log.Info("createChain", "ChainID", chainID, "status", "ERROR")
+		log.Error("createChain", "ChainID", chainID, "status", "ERROR")
 		return c, err
 	} else if isFound {
-		log.Debug("createChain", "ChainID", chainID, "status", "Already Exist")
+		log.Warn("createChain", "ChainID", chainID, "status", "Already Exist")
 		return c, fmt.Errorf("shortAddr already exist")
 	}
 
@@ -460,13 +460,12 @@ func (self *StateDB) getOrCreateChain(chainID uint64) (c *chainObject, err error
 
 	//Tier1 : Lookup from current state
 	if currentChainObject, isSet := self.chainObjects[chainID]; isSet {
-		log.Debug("getOrCreateChain", "must go in here!!!", chainID, self.chainObjects[chainID])
 		return currentChainObject, nil
 	}
 
 	v, isFound, _, _, _, err := self.Storage.chainStorage.Get(deep.UInt64ToByte(chainID))
 	if err != nil {
-		log.Info("getOrCreateChain", "chainID", chainID, "status", "ERROR")
+		log.Error("getOrCreateChain", "chainID", chainID, "status", "ERROR")
 		return c, err
 	}
 
@@ -506,7 +505,7 @@ func (self *StateDB) updateChainObject(c *chainObject) (err error) {
 	err = self.ChunkStore.SetChunk(v, encoded)
 
 	if err != nil {
-		log.Info("updateChainObject: StoreChunk", "v", v, "ERROR", err)
+		log.Error("updateChainObject: StoreChunk", "v", v, "ERROR", err)
 		return err
 	} else {
 		log.Debug("updateChainObject: StoreChunk", "v", v, "encoded", encoded)
@@ -522,7 +521,7 @@ func (self *StateDB) updateChainObject(c *chainObject) (err error) {
 	}
 
 	if err != nil {
-		log.Info("updateChainObject", "c", c, "ERROR", err)
+		log.Error("updateChainObject", "c", c, "ERROR", err)
 		return err
 	}
 	return nil

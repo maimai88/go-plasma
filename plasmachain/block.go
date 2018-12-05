@@ -196,8 +196,7 @@ func (block Block) Hash() (h common.Hash) {
 	hw := sha3.NewKeccak256()
 	rlp.Encode(hw, []interface{}{
 		block.header,
-		block.body.Layer2Transactions,
-		block.body.AnchorTransactions,
+		block.body,
 	})
 	hw.Sum(h[:0])
 	return h

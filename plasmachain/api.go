@@ -72,13 +72,16 @@ func (s *PublicPlasmaAPI) GetPlasmaBlock(ctx context.Context, blockNumber rpc.Bl
 		blockNumber = rpc.BlockNumber(rawBlockNumber)
 	}
 
-	o := make(map[string]interface{})
+	//o := make(map[string]interface{})
+	m := make(map[string]interface{})
 	b := s.b.GetPlasmaBlock(blockNumber)
 	if b != nil {
 		//o = b.OutputBlock(false)
-		o["block"] = b.header
+		m["header"] = b.header
+		m["body"] = b.body
+		//o["block"] = m
 	}
-	om = ConvertToOrderMap(o)
+	om = ConvertToOrderMap(m)
 	return om
 }
 
