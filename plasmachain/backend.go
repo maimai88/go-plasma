@@ -79,7 +79,7 @@ func New(ctx *node.ServiceContext, config *Config, simulated bool) (*PlasmaChain
 	self.shutdownChan = make(chan bool)
 	self.networkId = config.NetworkId
 	self.chainType = "plasma"
-	self.blockchainID = 0
+	self.blockchainID = 666
 
 	self.ChunkStore, err = deep.NewRemoteStorage(self.blockchainID, config, self.chainType, self.operatorKey)
 	self.Storage = NewStorage(self.ChunkStore)
@@ -93,7 +93,7 @@ func New(ctx *node.ServiceContext, config *Config, simulated bool) (*PlasmaChain
 	self.ApiBackend = &PlasmaApiBackend{&self}
 
 	//TODO: removing loadLastState from new
-	if err := self.loadLastState(simulated); err != nil {
+	if err := self.loadLastState(self.config.ClearLastState); err != nil {
 		return nil, err
 	}
 	log.Info("Loaded last state")
@@ -210,7 +210,6 @@ func (self *PlasmaChain) InsertChain(chain deep.Blocks) (int, error) {
 	return n, err
 }
 
-//may be able to be optimized
 func (self *PlasmaChain) InsertChainForPOA(chain deep.Blocks) (int, error) {
 
 	blocknumber := self.blockNumber
@@ -220,14 +219,19 @@ func (self *PlasmaChain) InsertChainForPOA(chain deep.Blocks) (int, error) {
 		lastblock = block
 	}
 
-	//currentHeadBlockHash := GetCanonicalHash(self.Cloudstore, blocknumber, self.blockchainID)
-	//log.Info(fmt.Sprintf("backend.go:insertChain | blockHead Canonical Hash is: %+v", currentHeadBlockHash))
-
-	//WriteHeadBlockHash(self.Cloudstore, currentHeadBlockHash, self.blockchainID)
 	self.currentBlock = lastblock.(*Block)
-	//self.blockNumber = blocknumber
 	self.blockNumber = self.currentBlock.Number()
-	log.Info("🔨 block to mine", "self.currentBlock number", self.currentBlock.Number(), "self.blockNumber", self.blockNumber)
+	data, err := self.currentBlock.Encode()
+
+	if err != nil {
+		log.Error("InsertChainForPOA: blockHash Encode", "ERROR", err)
+		return 0, err
+	}
+
+	blockHash := deep.Keccak256(data)
+	self.setHeadBlockHash(self.blockchainID, common.BytesToHash(blockHash))
+
+	log.Debug("🔨 block to mine", "self.currentBlock number", self.currentBlock.Number(), "self.blockNumber", self.blockNumber)
 	if self.config.UseLayer1 {
 		self.publishBlock(self.currentBlock.header.TransactionRoot, self.currentBlock.Number(), true)
 		log.Info("Rootchain >> publishBlock", "block#", self.currentBlock.Number(), "TransactionRoot", self.currentBlock.header.TransactionRoot)
@@ -732,14 +736,20 @@ func WriteBlock(db deep.StorageLayer, block deep.Block) error {
 
 	var bdecoded *Block
 	_ = rlp.Decode(bytes.NewReader(data), &bdecoded)
-	//log.Debug("backend :WriteBlock", "Decode", bdecoded)
 
-	//log.Debug(fmt.Sprintf("WriteBlock with key of %x", BlockKey), "Data", common.Bytes2Hex(data))
 	err = db.SetChunk(BlockKey, data)
 	if err != nil {
 		return err
 	} else {
 		log.Debug(fmt.Sprintf("WriteBlock key: %x block: %+v", BlockKey, block))
+	}
+
+	//Critical bug: mismatch between block bs block.Hash() resulting resource update here
+	blockHash := deep.Keccak256(data)
+	err = db.SetChunk(blockHash, data)
+	if err != nil {
+		log.Error("Error Storing blockHash Chunk", "error", err, "HeadHash key", common.Bytes2Hex(blockHash), "data", common.Bytes2Hex(data))
+		return err
 	}
 	return nil
 }
@@ -1001,6 +1011,27 @@ func (self *PlasmaChain) getBlockHeaderByNumber(blockNumber uint64) (h Header, e
 	return *header, nil
 }
 
+func (self *PlasmaChain) getBlockByHash(blockHash common.Hash) (b deep.Block, err error) {
+	v, ok, err := self.ChunkStore.GetChunk(blockHash.Bytes())
+	if err != nil {
+		log.Error(fmt.Sprintf("[backend.go:getBlockByHash] Error retrieving block with blockhash [%x] | {%+v}", blockHash, err))
+		return b, err
+	} else if !ok {
+		log.Warn(fmt.Sprintf("[backend.go:getBlockByHash] Attempt to retrieve block with blockhash [%x] and block not found", blockHash))
+		return b, nil
+	} else if len(v) == 0 {
+		return b, fmt.Errorf("Attempt to retrieve block with blockhash [%x] and got nothing back", blockHash)
+	}
+	log.Debug(fmt.Sprintf("[backend.go:getBlockByHash] Successfully retrieved block with blockhash [%x]", blockHash))
+	bl := FromChunk(v)
+	log.Debug("[backend.go:getBlockByHash] getBlockByHash", "blockHash", blockHash.Hex(), "bl", bl.String(), "headerHash", bl.Header().Hash())
+	_, err = bl.ValidateBlock()
+	if err != nil {
+		return b, err
+	}
+	return *bl, nil
+}
+
 func (self *PlasmaChain) getPlasmaToken(tokenID, blockNumber uint64) (t *Token, err error) {
 	h, err := self.getBlockHeaderByNumber(blockNumber)
 	if err != nil {
@@ -1214,6 +1245,104 @@ func (self *PlasmaChain) getTokenHistory(tokenID uint64) (txs []*Transaction) {
 	return txs
 }
 
+func (self *PlasmaChain) getHeadBlockHash(chainID uint64) (headHash common.Hash, ok bool, err error) {
+	headKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dlatestHeadHash", chainID)))
+	val, ok, err := self.ChunkStore.GetChunk(headKey)
+	if err != nil {
+		//log.Error("Plasma:getHeadBlockHash - Error", "error", err)
+		return headHash, ok, err
+	} else if !ok {
+		//log.Info("Plasma:getHeadBlockHash - Chunk not found")
+		//return headHash, ok, fmt.Errorf("chainID %x headHash Chunk not found", chainID)
+		return headHash, ok, err
+	} else if len(val) > 0 && len(val) != 32 {
+		return headHash, ok, fmt.Errorf("chainID %x headHash [%x]: invalid len %d", chainID, common.Bytes2Hex(val), len(val))
+	} else {
+		headHash = common.BytesToHash(val)
+		return headHash, ok, err
+	}
+}
+
+func (self *PlasmaChain) getHashBlockNumber(chainID uint64, headHash common.Hash) (blockNumber uint64, ok bool, err error) {
+	blockKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dheadHash%x", chainID, headHash.Bytes())))
+	val, ok, err := self.ChunkStore.GetChunk(blockKey)
+	if err != nil {
+		//log.Error("Plasma:getHashBlockNumber - Error", "error", err)
+		return blockNumber, ok, err
+	} else if !ok {
+		//log.Info("Plasma:getHashBlockNumber - Chunk not found")
+		//return blockNumber, ok, fmt.Errorf("chainID %x headHash Chunk not found", chainID)
+		return blockNumber, ok, err
+		/*
+			} else if len(val) == 0 {
+				return blockNumber, ok, fmt.Errorf("chainID %x headHash is empty ", chainID)
+		*/
+	} else {
+		blockNumber = deep.BytesToUint64(val)
+		return blockNumber, ok, err
+	}
+}
+
+func (self *PlasmaChain) getCanonicalHash(chainID uint64, blockNumber uint64) (canonicalHash common.Hash, ok bool, err error) {
+	canonicalKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dcanonicalBlock%d", chainID, blockNumber)))
+	val, ok, err := self.ChunkStore.GetChunk(canonicalKey)
+	if err != nil {
+		//log.Error("Plasma:getCanonicalHash - Error", "error", err)
+		return canonicalHash, ok, err
+	} else if !ok {
+		//log.Info("Plasma:getCanonicalHash - Chunk not found")
+		//return canonicalHash, ok, fmt.Errorf("chainID %x CanonicalHash Chunk not found", chainID)
+		return canonicalHash, ok, err
+	} else if len(val) > 0 && len(val) != 32 {
+		//log.Error("Plasma:getCanonicalHash - Invlaid CanonicalHash")
+		return canonicalHash, ok, fmt.Errorf("chainID %x CanonicalHash [%x]: invalid len %d", chainID, common.Bytes2Hex(val), len(val))
+	} else {
+		canonicalHash = common.BytesToHash(val)
+		return canonicalHash, ok, err
+	}
+}
+
+//TODO: set calls need to validate sig
+func (self *PlasmaChain) setHeadBlockHash(chainID uint64, headHash common.Hash) (err error) {
+	//check signiture here
+	if err != nil {
+		return err
+	}
+	headKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dlatestHeadHash", chainID)))
+	log.Debug("Plasma:setHeadBlockHash", "chainID", chainID, "headKey", common.Bytes2Hex(headKey), "headHash", common.Bytes2Hex(headHash.Bytes()))
+	err = self.ChunkStore.SetChunk(headKey, headHash.Bytes())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (self *PlasmaChain) setHashBlockNumber(chainID uint64, headHash common.Hash, blockNumber uint64) (err error) {
+	//check signiture here
+	if err != nil {
+		return err
+	}
+	blockKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dheadHash%x", chainID, headHash.Bytes())))
+	canonicalKey := deep.Keccak256([]byte(fmt.Sprintf("chain%dcanonicalBlock%d", chainID, blockNumber)))
+	log.Debug("Plasma:set blockKey", "chainID", chainID, "blockKey", common.Bytes2Hex(blockKey), "headHash", common.Bytes2Hex(headHash.Bytes()))
+	log.Debug("Plasma:set canonicalKey", "chainID", chainID, "canonicalKey", common.Bytes2Hex(canonicalKey), "blockNumber", blockNumber)
+	err1 := self.ChunkStore.SetChunk(blockKey, deep.UInt64ToByte(blockNumber))
+	err2 := self.ChunkStore.SetChunk(canonicalKey, headHash.Bytes())
+	if err1 != nil && err2 != nil {
+		return fmt.Errorf("%v %v", err1, err2)
+	} else if err1 != nil || err2 != nil {
+		if err1 != nil {
+			return err1
+		}
+		return err2
+	}
+	return nil
+}
+
+func (self *PlasmaChain) setCanonicalHash(chainID uint64, canonicalHash common.Hash, blockNumber uint64) (err error) {
+	return self.setHashBlockNumber(chainID, canonicalHash, blockNumber)
+}
+
 /* Plasma Function for external API  */
 /* ========================================================================== */
 
@@ -1251,6 +1380,30 @@ func (s *PlasmaChain) APIs() (apis []rpc.API) {
 
 func (self *PlasmaChain) GetAnchorTransactionProof(hash common.Hash) (chainID uint64, txbyte []byte, blockProof *merkletree.Proof, smtProof *smt.Proof, anchorBlkNum uint64, blockNumber uint64, err error) {
 	return chainID, txbyte, blockProof, smtProof, anchorBlkNum, blockNumber, err
+}
+
+func (self *PlasmaChain) GetHeadBlockHash(chainID hexutil.Uint64) (headHash common.Hash, ok bool, err error) {
+	return self.getHeadBlockHash(uint64(chainID))
+}
+
+func (self *PlasmaChain) GetHashBlockNumber(chainID hexutil.Uint64, headHash common.Hash) (bn uint64, ok bool, err error) {
+	return self.getHashBlockNumber(uint64(chainID), headHash)
+}
+
+func (self *PlasmaChain) GetCanonicalHash(chainID, blockNum hexutil.Uint64) (canonicalHash common.Hash, ok bool, err error) {
+	return self.getCanonicalHash(uint64(chainID), uint64(blockNum))
+}
+
+func (self *PlasmaChain) SetHeadBlockHash(chainID hexutil.Uint64, headHash common.Hash) (err error) {
+	return self.setHeadBlockHash(uint64(chainID), headHash)
+}
+
+func (self *PlasmaChain) SetHashBlockNumber(chainID hexutil.Uint64, headBlockHash common.Hash, blockNum hexutil.Uint64) (err error) {
+	return self.setHashBlockNumber(uint64(chainID), headBlockHash, uint64(blockNum))
+}
+
+func (self *PlasmaChain) SetCanonicalHash(chainID hexutil.Uint64, canonicalHash common.Hash, blockNum hexutil.Uint64) (err error) {
+	return self.setHashBlockNumber(uint64(chainID), canonicalHash, uint64(blockNum))
 }
 
 // Transaction APIs
@@ -1490,23 +1643,45 @@ func (self *PlasmaChain) setRootContract(contractAddr, rpc_endpointUrl, ws_endpo
 	return nil
 }
 
-func (self *PlasmaChain) loadLastState(simulated bool) error {
+func (self *PlasmaChain) loadLastState(clearstate bool) error {
 	// figure out what to do here in test vs prod
-	if simulated {
-		b := NewBlock()
+	headHash, ok, err := self.getHeadBlockHash(self.blockchainID)
+	b := NewBlock()
+	if !ok || err != nil {
 		self.blockNumber = 0
 		self.currentBlock = b
-		//TODO: simulated should set to false in defaultsetting
 		if !self.config.UseLayer1 {
-			self.initDeposit(10, simulated)
+			self.initDeposit(10, true)
 		}
 	} else {
-		b := NewBlock()
-		//self.blockNumber = 1 // the one we are working on right now, not the most recent block
-		self.blockNumber = 0
-		self.currentBlock = b
-		self.initDeposit(10, simulated)
+		log.Info("loadLastState", "HeadBlockHash", headHash.Hex())
+		lastblock, err := self.getBlockByHash(headHash)
+		if err != nil {
+			return err
+		}
+
+		if lastblock == nil {
+			if clearstate {
+				log.Warn("loadLastState:lastblock lost", "action", "start as new plasma")
+				self.blockNumber = 0
+				self.currentBlock = b
+				if !self.config.UseLayer1 {
+					self.initDeposit(10, true)
+				}
+				return nil
+			} else {
+				log.Error("loadLastState:lastblock lost", "action", "exit")
+				return fmt.Errorf("lastblock lost %s", headHash.Hex())
+			}
+		}
+
+		b0 := lastblock.(Block)
+		self.blockNumber = b0.Number()
+		self.currentBlock = &b0
 	}
+
+	//TODO: simulated should set to false in defaultsetting
+
 	return nil
 }
 

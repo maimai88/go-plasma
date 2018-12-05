@@ -57,29 +57,33 @@ To launch plasma, Run:
 ### Get Started
 
 Plasma binary supports the following flags:
-```
-MISC OPTIONS:
 
-  --plasma.datadir value    Directory for local plasma chunk storage (default: "/tmp/plasmachain")
-  --uselayer1               Connect to Layer 1 (default: disabled)
-  --rootcontract value      Layer 1 Rootcontract Address  (default: "0xa611dD32Bb2cC893bC57693bFA423c52658367Ca")
-  --l1rpcendpoint value     Layer 1 RootChain rpc endpoint URL  (default: "http://localhost:8545")
-  --l1wsendpoint value      Layer 1 RootChain websocket endpoint URL  (default: "ws://localhost:8545")
-  --useremotestorage        Enable Wolk Remotestorage backend (default: disabled)
-  --minttime value          Amount of time between raft block creations in milliseconds (default: 2000)
+```
+PLASMA OPTIONS:
+  --plasmadir value                            Directory for local plasma chunk storage (default: "/tmp/plasmachain")
+  --datadir                                    Data directory for the databases and keystore
+  --keystore                                   Directory for the keystore (default = inside the datadir)
+  --identity value                             Custom node name
+  --uselayer1                                  Connect to Layer 1 (default: disabled)
+  --rootcontract value                         Layer 1 Rootcontract Address  (default: "0xa611dD32Bb2cC893bC57693bFA423c52658367Ca")
+  --l1rpcendpoint value                        Layer 1 RootChain rpc endpoint URL  (default: "http://localhost:8545")
+  --l1wsendpoint value                         Layer 1 RootChain websocket endpoint URL  (default: "ws://localhost:8545")
+  --useremotestorage                           Enable Wolk Remotestorage backend (default: disabled)
+  --clearplasma                                Reload plasma and wipe previous state. Use with caution (default: disabled)
+  --minttime value                             Amount of time between raft block creations in milliseconds (default: 2000)
 
 ```
 
  Option A - Running Layer 2 plasma node only, without RootChain:
 ```
 # Run POA plasma node, enabling RPC services at port 8505
-$ ./build/bin/plasma --datadir /tmp/datadir3 --plasma.datadir /tmp/plasma3 --port 30303  --verbosity 4 --rpc --rpcaddr 'localhost' --rpcport 8505 --rpcapi 'personal,db,eth,net,web3,swarmdb,plasma'
+$ ./build/bin/plasma --datadir /tmp/datadir3 --plasmadir /tmp/plasma3 --port 30303  --verbosity 4 --rpc --rpcaddr 'localhost' --rpcport 8505 --rpcapi 'personal,db,eth,net,web3,swarmdb,plasma'
 
 # [Optional] Run multiple plasma nodes, peer with master, neighbors, etc.
-$ ./build/bin/plasma --datadir /tmp/datadir4 --plasma.datadir /tmp/plasma4 --port 30304  --verbosity 4
-$ ./build/bin/plasma --datadir /tmp/datadir5 --plasma.datadir /tmp/plasma5 --port 30305  --verbosity 4
-$ ./build/bin/plasma --datadir /tmp/datadir6 --plasma.datadir /tmp/plasma6 --port 30306  --verbosity 4
-$ ./build/bin/plasma --datadir /tmp/datadir7 --plasma.datadir /tmp/plasma7 --port 30307  --verbosity 4
+$ ./build/bin/plasma --datadir /tmp/datadir4 --plasmadir /tmp/plasma4 --port 30304  --verbosity 4
+$ ./build/bin/plasma --datadir /tmp/datadir5 --plasmadir /tmp/plasma5 --port 30305  --verbosity 4
+$ ./build/bin/plasma --datadir /tmp/datadir6 --plasmadir /tmp/plasma6 --port 30306  --verbosity 4
+$ ./build/bin/plasma --datadir /tmp/datadir7 --plasmadir /tmp/plasma7 --port 30307  --verbosity 4
 
 # If successful, the node will start off with some sample deposits
 Deposit:  TokenID b437230feb2d24db | Denomination 1000000000000000000 | DepositIndex 0  (Depositor: 0xA45b77a98E2B840617e2eC6ddfBf71403bdCb683, TxHash: 0xd7e629ac78805d54faea00fd64e08af4d88c511827aa9ef7f5ead3945d7a527b)
@@ -96,7 +100,7 @@ Deposit:  TokenID 7c00dfa72e8832ed | Denomination 4000000000000000000 | DepositI
 $ sh ./plasmachain/contracts/RootChain/Util/init_ganache-cli.sh
 
 # Run POA plasma node, set useLayer1 flag, and enabling RPC services at port 8505
-$ ./build/bin/plasma --datadir /tmp/datadir3 --plasma.datadir /tmp/plasma3 --port 30303  --verbosity 4 --rpc --rpcaddr 'localhost' --rpcport 8505 --rpcapi 'personal,db,eth,net,web3,swarmdb,plasma' --uselayer1 --rootcontract '0xa611dD32Bb2cC893bC57693bFA423c52658367Ca'
+$ ./build/bin/plasma --datadir /tmp/datadir3 --plasmadir /tmp/plasma3 --port 30303  --verbosity 4 --rpc --rpcaddr 'localhost' --rpcport 8505 --rpcapi 'personal,db,eth,net,web3,swarmdb,plasma' --uselayer1 --rootcontract '0xa611dD32Bb2cC893bC57693bFA423c52658367Ca'
 
 # Start event-listner
 $ node ./plasmachain/contracts/RootChain/listener/listener.js writeLog /plasmachain/contracts/RootChain/listener/events.log
@@ -133,7 +137,6 @@ Plasma node serves its users via JSON-RPC 2.0. Most Plasma APIs can be tested ei
 $ ./build/bin/plasma attach ~/Library/Ethereum/plasmachain.ipc
 > plasma
 {
-    getAnchor: function(),
     getAnchorTransactionPool: function(),
     getAnchorTransactionProof: function(),
     getPlasmaBalance: function(),

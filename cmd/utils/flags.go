@@ -200,13 +200,18 @@ var (
 	}
 	// Plasma settings
 	PlasmaDataDirFlag = cli.StringFlag{
-		Name:  "plasma.datadir",
+		Name:  "plasmadir",
 		Usage: "Directory for local plasma chunk storage",
 		Value: plasmachain.DefaultConfig.DataDir,
 	}
 	Layer1Flag = cli.BoolFlag{
 		Name:  "uselayer1",
 		Usage: "Connect to Layer 1",
+	}
+
+	PlasmaClearFlag = cli.BoolFlag{
+		Name:  "clearplasma",
+		Usage: "Reload plasma and wipe previous state. Use with caution",
 	}
 
 	RemoteStorageFlag = cli.BoolFlag{
@@ -1121,6 +1126,10 @@ func SetPlasmaConfig(ctx *cli.Context, cfg *plasmachain.Config) {
 
 	if ctx.GlobalBool(RemoteStorageFlag.Name) {
 		//cfg.RemoteDisabled = false //disabled for now
+	}
+
+	if ctx.GlobalBool(PlasmaClearFlag.Name) {
+		cfg.ClearLastState = true
 	}
 
 	if ctx.GlobalIsSet(Layer1rpcEndpointFlag.Name) {

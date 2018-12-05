@@ -66,52 +66,53 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "PLASMA",
 		Flags: []cli.Flag{
-			configFileFlag,
+			//configFileFlag,
+			utils.PlasmaDataDirFlag,
 			utils.DataDirFlag,
 			utils.KeyStoreDirFlag,
-			utils.NoUSBFlag,
-			utils.NetworkIdFlag,
-			utils.TestnetFlag,
-			utils.RinkebyFlag,
-			utils.SyncModeFlag,
-			utils.GCModeFlag,
-			utils.EthStatsURLFlag,
+			// utils.NetworkIdFlag,
 			utils.IdentityFlag,
-			utils.LightServFlag,
-			utils.LightPeersFlag,
-			utils.LightKDFFlag,
+			utils.Layer1Flag,
+			utils.RootContractFlag,
+			utils.Layer1rpcEndpointFlag,
+			utils.Layer1wsEndpointFlag,
+			utils.RemoteStorageFlag,
+			utils.PlasmaClearFlag,
+			utils.MintTimeFlag,
 		},
 	},
-	{Name: "DEVELOPER CHAIN",
-		Flags: []cli.Flag{
-			utils.DeveloperFlag,
-			utils.DeveloperPeriodFlag,
+	/*
+		{Name: "DEVELOPER CHAIN",
+			Flags: []cli.Flag{
+				utils.DeveloperFlag,
+				utils.DeveloperPeriodFlag,
+			},
 		},
-	},
-	{
-		Name: "TRANSACTION POOL",
-		Flags: []cli.Flag{
-			utils.TxPoolNoLocalsFlag,
-			utils.TxPoolJournalFlag,
-			utils.TxPoolRejournalFlag,
-			utils.TxPoolPriceLimitFlag,
-			utils.TxPoolPriceBumpFlag,
-			utils.TxPoolAccountSlotsFlag,
-			utils.TxPoolGlobalSlotsFlag,
-			utils.TxPoolAccountQueueFlag,
-			utils.TxPoolGlobalQueueFlag,
-			utils.TxPoolLifetimeFlag,
+		{
+			Name: "TRANSACTION POOL",
+			Flags: []cli.Flag{
+				utils.TxPoolNoLocalsFlag,
+				utils.TxPoolJournalFlag,
+				utils.TxPoolRejournalFlag,
+				utils.TxPoolPriceLimitFlag,
+				utils.TxPoolPriceBumpFlag,
+				utils.TxPoolAccountSlotsFlag,
+				utils.TxPoolGlobalSlotsFlag,
+				utils.TxPoolAccountQueueFlag,
+				utils.TxPoolGlobalQueueFlag,
+				utils.TxPoolLifetimeFlag,
+			},
 		},
-	},
-	{
-		Name: "PERFORMANCE TUNING",
-		Flags: []cli.Flag{
-			utils.CacheFlag,
-			utils.CacheDatabaseFlag,
-			utils.CacheGCFlag,
-			utils.TrieCacheGenFlag,
+		{
+			Name: "PERFORMANCE TUNING",
+			Flags: []cli.Flag{
+				utils.CacheFlag,
+				utils.CacheDatabaseFlag,
+				utils.CacheGCFlag,
+				utils.TrieCacheGenFlag,
+			},
 		},
-	},
+	*/
 	{
 		Name: "ACCOUNT",
 		Flags: []cli.Flag{
@@ -153,52 +154,16 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.NoDiscoverFlag,
 			utils.DiscoveryV5Flag,
 			utils.NetrestrictFlag,
-			utils.NodeKeyFileFlag,
-			utils.NodeKeyHexFlag,
 		},
 	},
 	{
-		Name: "MINER",
-		Flags: []cli.Flag{
-			utils.MiningEnabledFlag,
-			utils.MinerThreadsFlag,
-			utils.EtherbaseFlag,
-			utils.TargetGasLimitFlag,
-			utils.GasPriceFlag,
-			utils.ExtraDataFlag,
+		Name: "DEPRECATED/DISABLED",
+	},
+	/*
+		{
+			Name: "MISC",
 		},
-	},
-	{
-		Name: "GAS PRICE ORACLE",
-		Flags: []cli.Flag{
-			utils.GpoBlocksFlag,
-			utils.GpoPercentileFlag,
-		},
-	},
-	{
-		Name: "VIRTUAL MACHINE",
-		Flags: []cli.Flag{
-			utils.VMEnableDebugFlag,
-		},
-	},
-	{
-		Name: "LOGGING AND DEBUGGING",
-		Flags: []cli.Flag{
-			utils.MetricsEnabledFlag,
-			utils.FakePoWFlag,
-			utils.NoCompactionFlag,
-		},
-	},
-	{
-		Name: "DEPRECATED",
-		Flags: []cli.Flag{
-			utils.FastSyncFlag,
-			utils.LightModeFlag,
-		},
-	},
-	{
-		Name: "MISC",
-	},
+	*/
 }
 
 // byCategory sorts an array of flagGroup by Name in the order

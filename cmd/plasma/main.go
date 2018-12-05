@@ -110,6 +110,7 @@ var (
 		utils.Layer1rpcEndpointFlag,
 		utils.Layer1wsEndpointFlag,
 		utils.RemoteStorageFlag,
+		utils.PlasmaClearFlag,
 	}
 
 	rpcFlags = []cli.Flag{

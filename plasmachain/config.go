@@ -14,6 +14,7 @@ type Config struct {
 	CloudstorePort   uint64
 	RemoteDisabled   bool
 	UseLayer1        bool
+	ClearLastState   bool
 	RootContractAddr string
 	operatorKey      string //TODO: Replace this keystore dir
 	L1rpcEndpointUrl string
@@ -30,6 +31,7 @@ var DefaultConfig = Config{
 	CloudstorePort:   9900,
 	RemoteDisabled:   true,
 	UseLayer1:        false,
+	ClearLastState:   false,
 	RootContractAddr: "0xa611dD32Bb2cC893bC57693bFA423c52658367Ca",
 	operatorKey:      "6545ddd10c1e0d6693ba62dec711a2d2973124ae0374d822f845d322fb251645",
 	L1rpcEndpointUrl: "http://localhost:8545",
@@ -46,6 +48,7 @@ var LocalTestConfig = Config{
 	CloudstorePort:   9900,
 	RemoteDisabled:   true,
 	UseLayer1:        false,
+	ClearLastState:   false,
 	RootContractAddr: "0xa611dD32Bb2cC893bC57693bFA423c52658367Ca",
 	operatorKey:      "6545ddd10c1e0d6693ba62dec711a2d2973124ae0374d822f845d322fb251645",
 	L1rpcEndpointUrl: "http://localhost:8545",
