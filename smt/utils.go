@@ -4,6 +4,7 @@ package smt
 
 import (
 	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 )
 

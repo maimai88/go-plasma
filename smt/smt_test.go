@@ -19,7 +19,7 @@ func TestSequence(t *testing.T) {
 	for i := uint64(0); i < nkeys; i++ {
 
 		k := smt.UIntToByte(i)
-		v := smt.Keccak256([]byte(fmt.Sprintf("value%d", i)))
+		v := smt.Computehash([]byte(fmt.Sprintf("value%d", i)))
 		kv[i] = common.BytesToHash(v)
 		err = smt0.Insert(k, v, 0, 0)
 		if err != nil {
@@ -80,8 +80,8 @@ func TestSMT(t *testing.T) {
 		kv[ver] = make(map[uint64]common.Hash)
 		for i := uint64(0); i < nkeys; i++ {
 			storageBytesNew := uint64(3)
-			k := smt.Bytes32ToUint64(smt.Keccak256(smt.Uint64ToBytes32(i % 10000)))
-			v := smt.Keccak256([]byte(fmt.Sprintf("%d%d", i, ver)))
+			k := smt.Bytes32ToUint64(smt.Computehash(smt.Uint64ToBytes32(i % 10000)))
+			v := smt.Computehash([]byte(fmt.Sprintf("%d%d", i, ver)))
 			// fmt.Printf("%x version %d == %x\n", k, ver, v)
 			kv[ver][k] = common.BytesToHash(v)
 			prevBlock := ver
@@ -105,7 +105,7 @@ func TestSMT(t *testing.T) {
 		smt0.Init(chunkHash[ver])
 		passes := 0
 		for i := uint64(0); i < nkeys; i++ {
-			k := smt.Bytes32ToUint64(smt.Keccak256(smt.Uint64ToBytes32(i % 10000)))
+			k := smt.Bytes32ToUint64(smt.Computehash(smt.Uint64ToBytes32(i % 10000)))
 			v1, found, proof, storageBytes, prevBlock, err := smt0.Get(smt.UIntToByte(k))
 			// smt0.Flush()
 			// smt0.Dump()

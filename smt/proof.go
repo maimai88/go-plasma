@@ -32,18 +32,18 @@ func (self *Proof) Check(leaf []byte, root []byte, verbose bool) bool {
 			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
 				//Non-default Hash
 				// i-th bit is "1", so hash with H([]) on the left
-				cur = util.Keccak256(self.proof[p], cur)
+				cur = Computehash(self.proof[p], cur)
 			} else {
 				// i-th bit is "0", so hash with H([]) on the right
-				cur = util.Keccak256(cur, self.proof[p])
+				cur = Computehash(cur, self.proof[p])
 			}
 			p++
 		} else {
 			//DefaultHash
 			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
-				cur = util.Keccak256(GlobalDefaultHashes[i], cur)
+				cur = Computehash(GlobalDefaultHashes[i], cur)
 			} else {
-				cur = util.Keccak256(cur, GlobalDefaultHashes[i])
+				cur = Computehash(cur, GlobalDefaultHashes[i])
 			}
 		}
 	}
@@ -71,19 +71,19 @@ func (self *Proof) PrintSMTProof(leaf []byte) string {
 			}
 			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
 				out = out + fmt.Sprintf("H%v | [P,*] bit%v=1 | H(P[%d]:%x, H[%d]:%x) => ", i+1, i, p, self.proof[p], i, cur)
-				cur = util.Keccak256(self.proof[p], cur)
+				cur = Computehash(self.proof[p], cur)
 			} else {
 				out = out + fmt.Sprintf("H%v | [*,P] bit%v=0 | H(H[%d]:%x, P[%d]:%x) => ", i+1, i, i, cur, p, self.proof[p])
-				cur = util.Keccak256(cur, self.proof[p])
+				cur = Computehash(cur, self.proof[p])
 			}
 			p++
 		} else {
 			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
 				out = out + fmt.Sprintf("H%v | [D,*] bit%v=1 | H(D[%d]:%x, H[%d]:%x) => ", i+1, i, i, GlobalDefaultHashes[i], i, cur)
-				cur = util.Keccak256(GlobalDefaultHashes[i], cur)
+				cur = Computehash(GlobalDefaultHashes[i], cur)
 			} else {
 				out = out + fmt.Sprintf("H%v | [*,D] bit%v=0 | H(H[%d]:%x, D[%d]:%x) => ", i+1, i, i, cur, i, GlobalDefaultHashes[i])
-				cur = util.Keccak256(cur, GlobalDefaultHashes[i])
+				cur = Computehash(cur, GlobalDefaultHashes[i])
 			}
 		}
 		out = out + fmt.Sprintf(" %x\n\n", cur)
