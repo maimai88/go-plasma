@@ -1,12 +1,12 @@
 // Copyright 2018 Wolk Inc.
-// This file is part of the Wolk go-plasma library.
+// This file is part of the Wolk Deep Blockchains library.
 package smt
 
 import (
 	"bytes"
 	"fmt"
 
-	"github.com/wolkdb/go-plasma/deep"
+	"github.com/wolkdb/plasma/util"
 )
 
 type Proof struct {
@@ -15,53 +15,81 @@ type Proof struct {
 	proofBits uint64
 }
 
-func (self *Proof) Check(v []byte, root []byte, defaultHashes [TreeDepth][]byte, verbose bool) bool {
-	// the leaf value to start off hashing!  The value is hash(RLPEncode([]))
-	debug := false
-	cur := v
+func (self *Proof) Check(leaf []byte, root []byte, verbose bool) bool {
+
+	cur := leaf
 	p := 0
 
 	for i := uint64(0); i < 64; i++ {
-
 		if (uint64(1<<i) & self.proofBits) > 0 {
-			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 { // i-th bit is "1", so hash with H([]) on the left
-				if debug {
-					fmt.Printf("C%v | [P,*] bit%v=1 | H(P[%d]:%x, C[%d]:%x) => ", i+1, i, p, self.proof[p], i, cur)
+			if p >= len(self.proof) {
+				if verbose {
+					fmt.Printf("Invalid proofBytes Length\n")
 				}
-				cur = deep.Keccak256(self.proof[p], cur)
-			} else { // i-th bit is "0", so hash with H([]) on the right
-				if debug {
-					fmt.Printf("C%v | [*,P] bit%v=0 | H(C[%d]:%x, P[%d]:%x) => ", i+1, i, i, cur, p, self.proof[p])
-				}
-				cur = deep.Keccak256(cur, self.proof[p])
+				return false
+			}
+
+			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
+				//Non-default Hash
+				// i-th bit is "1", so hash with H([]) on the left
+				cur = util.Keccak256(self.proof[p], cur)
+			} else {
+				// i-th bit is "0", so hash with H([]) on the right
+				cur = util.Keccak256(cur, self.proof[p])
 			}
 			p++
 		} else {
-			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 { // i-th bit is "1", so hash with H([]) on the left
-				if debug {
-					fmt.Printf("C%v | [D,*] bit%v=1 | H(D[%d]:%x, C[%d]:%x) => ", i+1, i, i, defaultHashes[i], i, cur)
-				}
-				cur = deep.Keccak256(defaultHashes[i], cur)
+			//DefaultHash
+			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
+				cur = util.Keccak256(GlobalDefaultHashes[i], cur)
 			} else {
-				if debug {
-					fmt.Printf("C%v | [*,D] bit%v=0 | H(C[%d]:%x, D[%d]:%x) => ", i+1, i, i, cur, i, defaultHashes[i])
-				}
-				cur = deep.Keccak256(cur, defaultHashes[i])
+				cur = util.Keccak256(cur, GlobalDefaultHashes[i])
 			}
-		}
-		if debug {
-			fmt.Printf(" %x\n", cur)
 		}
 	}
 	res := bytes.Compare(cur, root) == 0
 	if verbose {
 		if res {
-			fmt.Printf(" CheckProof success (proof matched root: %x)\n", root)
+			fmt.Printf(" CheckProof success (root matche: %x)\n", cur)
 		} else {
-			fmt.Printf(" CheckProof FAILURE (proof does NOT match root: %x)\n", root)
+			fmt.Printf(" CheckProof FAILURE (expected root [%x] does NOT match actual root: %x)\n", root, cur)
 		}
 	}
 	return res
+}
+
+func (self *Proof) PrintSMTProof(leaf []byte) string {
+	cur := leaf
+	p := 0
+
+	out := fmt.Sprintf("****\nSMTProof\n")
+
+	for i := uint64(0); i < 64; i++ {
+		if (uint64(1<<i) & self.proofBits) > 0 {
+			if p >= len(self.proof) {
+				return fmt.Sprintf("Missing Proof afer depth %d\n", p)
+			}
+			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
+				out = out + fmt.Sprintf("H%v | [P,*] bit%v=1 | H(P[%d]:%x, H[%d]:%x) => ", i+1, i, p, self.proof[p], i, cur)
+				cur = util.Keccak256(self.proof[p], cur)
+			} else {
+				out = out + fmt.Sprintf("H%v | [*,P] bit%v=0 | H(H[%d]:%x, P[%d]:%x) => ", i+1, i, i, cur, p, self.proof[p])
+				cur = util.Keccak256(cur, self.proof[p])
+			}
+			p++
+		} else {
+			if byte(0x01<<(i%8))&byte(self.key[(TreeDepth-1-i)/8]) > 0 {
+				out = out + fmt.Sprintf("H%v | [D,*] bit%v=1 | H(D[%d]:%x, H[%d]:%x) => ", i+1, i, i, GlobalDefaultHashes[i], i, cur)
+				cur = util.Keccak256(GlobalDefaultHashes[i], cur)
+			} else {
+				out = out + fmt.Sprintf("H%v | [*,D] bit%v=0 | H(H[%d]:%x, D[%d]:%x) => ", i+1, i, i, cur, i, GlobalDefaultHashes[i])
+				cur = util.Keccak256(cur, GlobalDefaultHashes[i])
+			}
+		}
+		out = out + fmt.Sprintf(" %x\n\n", cur)
+	}
+	out = out + fmt.Sprintf("SMTProof Root: %x\n****\n", cur)
+	return out
 }
 
 func (self *Proof) String() string {
@@ -77,25 +105,24 @@ func (self *Proof) String() string {
 }
 
 func (p *Proof) Bytes() (out []byte) {
-	out = append(out, deep.UInt64ToByte(p.proofBits)...)
+	out = append(out, util.UInt64ToByte(p.proofBits)...)
 	for _, h := range p.proof {
 		out = append(out, h...)
 	}
 	return out
 }
 
-func (p *Proof) Key() (index uint64) {
-	return deep.BytesToUint64(p.key)
-}
-
-func ToProof(index uint64, proofBytes []byte) *Proof {
-	var pbits, psegs []byte
+func ToProof(index uint64, proofBytes []byte) (Proof, error) {
 	var p Proof
+	if len(proofBytes)%32 != 8 {
+		return p, fmt.Errorf("Invalid proofBytes Length")
+	}
+	var pbits, psegs []byte
 	pbits, psegs = proofBytes[:8], proofBytes[8:]
-	p.key = deep.UInt64ToByte(index)
-	p.proofBits = deep.BytesToUint64(pbits)
+	p.key = UIntToByte(index)
+	p.proofBits = Bytes32ToUint64(pbits)
 	p.proof = proofSplit(psegs)
-	return &p
+	return p, nil
 }
 
 func proofSplit(segments []byte) [][]byte {

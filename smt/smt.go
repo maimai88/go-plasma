@@ -45,7 +45,7 @@ func (self *SparseMerkleTree) Copy() (t *SparseMerkleTree) {
 }
 
 func (self *SparseMerkleTree) Flush() common.Hash {
-	self.root.computeMerkleRoot(self.ChunkStore, self.DefaultHashes)
+	self.root.computeMerkleRoot(self.ChunkStore)
 	self.root.flush(self.ChunkStore)
 	self.root.flushRoot(self.ChunkStore)
 	return common.BytesToHash(self.root.chunkHash)
@@ -59,7 +59,7 @@ func (self *SparseMerkleTree) Delete(k []byte) error {
 func (self *SparseMerkleTree) GenerateProof(k []byte, v []byte) (p *Proof) {
 	var pr Proof
 	pr.key = k
-	self.root.generateProof(self.ChunkStore, k, v, 0, self.DefaultHashes, &pr)
+	self.root.generateProof(self.ChunkStore, k, v, 0, &pr)
 	return &pr
 }
 
@@ -91,7 +91,7 @@ func (self *SparseMerkleTree) Get(k []byte) (v0 []byte, found bool, p *Proof, st
 	if found {
 		var pr Proof
 		pr.key = k
-		ok := self.root.generateProof(self.ChunkStore, k, v0, 0, self.DefaultHashes, &pr)
+		ok := self.root.generateProof(self.ChunkStore, k, v0, 0, &pr)
 		if !ok {
 			return v0, found, &pr, storageBytes, prevBlock, fmt.Errorf("NO proof")
 		}

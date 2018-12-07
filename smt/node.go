@@ -19,6 +19,12 @@ const (
 	bitsPerPiece  = 4
 )
 
+var GlobalDefaultHashes [TreeDepth][]byte
+
+func init() {
+	GlobalDefaultHashes = ComputeDefaultHashes()
+}
+
 func keypiece(k []byte, i int) uint8 {
 	if i%2 == 0 { // top 4 bits if i is even
 		return (k[i/2] >> 4) & 0x0F
@@ -62,7 +68,7 @@ func (n *Node) SetHash(hash []byte) {
 	n.chunkHash = hash
 }
 
-func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, defaultHashes [TreeDepth][]byte, p *Proof) (ok bool) {
+func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, p *Proof) (ok bool) {
 	if n.unloaded {
 		n.load(pcs)
 	}
@@ -76,13 +82,13 @@ func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, d
 	if n.children[idx].terminal {
 		p.proofBits = 0
 	} else {
-		ok = n.children[idx].generateProof(pcs, k, v, i+1, defaultHashes, p)
+		ok = n.children[idx].generateProof(pcs, k, v, i+1, p)
 		if !ok {
 			return false
 		}
 	}
 
-	n.computeMerkleRootCache(defaultHashes)
+	n.computeMerkleRootCache()
 
 	for level := bitsPerPiece; level > 0; level-- {
 		// fmt.Printf("idx %08b @ level %d ==> PROOF OUTPUT %x\n", idx, level, n.mrcache[level][idx])
@@ -93,8 +99,8 @@ func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, d
 			sister_index = idx + 1
 		}
 		p0 := n.mrcache[level][sister_index]
-		if bytes.Compare(p0, defaultHashes[TreeDepth-level]) == 0 {
-			// fmt.Printf(" ---- %x defaultHashes[%d]: %x\n", p0, TreeDepth-level, defaultHashes[TreeDepth-level])
+		if bytes.Compare(p0, GlobalDefaultHashes[TreeDepth-level]) == 0 {
+			// fmt.Printf(" ---- %x GlobalDefaultHashes[%d]: %x\n", p0, TreeDepth-level, GlobalDefaultHashes[TreeDepth-level])
 		} else {
 			p.proof = append(p.proof, n.mrcache[level][sister_index])
 			p.proofBits |= (uint64(1) << uint64(n.level-level+1))
@@ -106,12 +112,12 @@ func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, d
 	return true
 }
 
-func (n *Node) computeMerkleRootCache(defaultHashes [TreeDepth][]byte) {
+func (n *Node) computeMerkleRootCache() {
 	// now for each of 8...0 levels, hash the level of "leaves" into  n.mrcache
 	newleaves_cnt := nchildren / 2
 	startlevel := bitsPerPiece - 1
 	for level := startlevel; level >= 0; level-- {
-		dh := defaultHashes[n.level-startlevel]
+		dh := GlobalDefaultHashes[n.level-startlevel]
 		for i := 0; i < newleaves_cnt; i++ {
 			if level == startlevel {
 				// now, using the children's merkle roots (or, dh if child is nil),
@@ -146,7 +152,7 @@ func (n *Node) computeMerkleRootCache(defaultHashes [TreeDepth][]byte) {
 	copy(n.merkleRoot[:], n.mrcache[0][0][:])
 }
 
-func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth][]byte) []byte {
+func (n *Node) computeMerkleRoot(pcs deep.StorageLayer) []byte {
 	n.load(pcs)
 
 	if n.terminal {
@@ -159,14 +165,14 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 		for i := uint(0); i <= uint(n.level); i++ {
 			if byte(0x01<<(i%8))&byte(n.key[(TreeDepth-1-i)/8]) > 0 { // i-th bit is "1", so hash with H([]) on the left
 				if debug && (i < 1 || i > 54) {
-					fmt.Printf(" mr %x bit %3d (%08b)=1 hash(defaultHashes[%d]:%x, cur:%x) => ", n.key, i, i, i, defaultHashes[i], cur)
+					fmt.Printf(" mr %x bit %3d (%08b)=1 hash(GlobalDefaultHashes[%d]:%x, cur:%x) => ", n.key, i, i, i, GlobalDefaultHashes[i], cur)
 				}
-				cur = Computehash(defaultHashes[i], cur)
+				cur = Computehash(GlobalDefaultHashes[i], cur)
 			} else { // i-th bit is "0", so hash with H([]) on the right
 				if debug && (i < 1 || i > 54) {
-					fmt.Printf(" mr %x bit %3d (%08b)=0 hash(cur:%x, defaultHashes[%d]:%x) => ", n.key, i, i, cur, i, defaultHashes[i])
+					fmt.Printf(" mr %x bit %3d (%08b)=0 hash(cur:%x, GlobalDefaultHashes[%d]:%x) => ", n.key, i, i, cur, i, GlobalDefaultHashes[i])
 				}
-				cur = Computehash(cur, defaultHashes[i])
+				cur = Computehash(cur, GlobalDefaultHashes[i])
 			}
 			if debug && (i < 1 || i > 54) {
 				fmt.Printf(" %x\n", cur)
@@ -179,7 +185,7 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 		// ok, we are not the terminal, so for each child, compute THEIR merkle root at the child Level
 		for i := 0; i < nchildren; i++ {
 			if n.children[i] != nil {
-				n.children[i].computeMerkleRoot(pcs, defaultHashes)
+				n.children[i].computeMerkleRoot(pcs)
 			}
 		}
 	}
@@ -188,7 +194,7 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 	newleaves_cnt := nchildren / 2
 	startlevel := bitsPerPiece - 1
 	for level := startlevel; level >= 0; level-- {
-		dh := defaultHashes[n.level-startlevel]
+		dh := GlobalDefaultHashes[n.level-startlevel]
 		for i := 0; i < newleaves_cnt; i++ {
 			if level == startlevel {
 				// now, using the children's merkle roots (or, dh if child is nil),
@@ -219,7 +225,7 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer, defaultHashes [TreeDepth
 		newleaves_cnt = newleaves_cnt / 2
 	}
 	// finally, store the answer
-	n.computeMerkleRootCache(defaultHashes)
+	n.computeMerkleRootCache()
 	return n.merkleRoot
 }
 

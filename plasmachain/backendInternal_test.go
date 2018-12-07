@@ -231,10 +231,10 @@ func (self *PlasmaChain) generateInternalProof(txHash common.Hash, verbose bool)
 	fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.Bytes(), currTx.Bytes())
 
 	if true {
-		if !prevProof.Check(prevTx.Hash().Bytes(), prevR.Bytes(), self.DefaultHashes, true) {
+		if !prevProof.Check(prevTx.Hash().Bytes(), prevR.Bytes(), true) {
 			return fmt.Errorf("checkproof failure")
 		}
-		if !currProof.Check(currTx.Hash().Bytes(), currR.Bytes(), self.DefaultHashes, true) {
+		if !currProof.Check(currTx.Hash().Bytes(), currR.Bytes(), true) {
 			return fmt.Errorf("checkproof failure")
 		}
 	}
