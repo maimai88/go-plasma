@@ -5,8 +5,6 @@ package smt
 import (
 	"bytes"
 	"fmt"
-
-	"github.com/wolkdb/plasma/util"
 )
 
 type Proof struct {
@@ -105,7 +103,7 @@ func (self *Proof) String() string {
 }
 
 func (p *Proof) Bytes() (out []byte) {
-	out = append(out, util.UInt64ToByte(p.proofBits)...)
+	out = append(out, UIntToByte(p.proofBits)...)
 	for _, h := range p.proof {
 		out = append(out, h...)
 	}
