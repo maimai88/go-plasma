@@ -1,3 +1,6 @@
+// Copyright 2018 Wolk Inc.
+// This file is part of the Wolk go-plasma library.
+
 package merkletree
 
 import (
@@ -6,7 +9,7 @@ import (
 )
 
 func TestMerkleTree(t *testing.T) {
-	nitems := int64(236)
+	nitems := int64(100)
 	o := make([][]byte, nitems)
 	for x := int64(0); x < nitems; x++ {
 		o[x] = Computehash([]byte(fmt.Sprintf("Val%d", x)))
@@ -14,7 +17,7 @@ func TestMerkleTree(t *testing.T) {
 
 	}
 
-	index := uint(37)
+	index := uint64(31)
 	fmt.Printf("value: %x\n", o[index])
 
 	// build merkle tree
@@ -22,17 +25,42 @@ func TestMerkleTree(t *testing.T) {
 	root := mtree[1]
 	fmt.Printf("root: %x\n", root)
 
-	roothash, mkproof, ind, err := GenProof(mtree, index)
+	// generate merkle proof
+	b, err := Mk_branch(mtree, index)
 	if err != nil {
-		t.Fatalf("err: %v\n", err)
-	} else {
-		fmt.Printf("[GenProof] root %x proof %x, ind %d\n", roothash, mkproof, ind)
+		t.Fatalf("mk_branch: %v\n", err)
+	}
+	for i, x := range b {
+		fmt.Printf("%d %x\n", i, x)
 	}
 
-	isValid, merkleroot, err := CheckProof(roothash, mkproof, ind)
+	roothash, mkproof, err := GenProof(mtree, uint64(index))
+	if err != nil {
+		t.Fatalf("err: %v\n", err)
+	}
+
+	p, _ := ToProof(mkproof.Proof, mkproof.Index)
+	fmt.Printf("[GenProof] root %x proof %x, ind %d\n[Proof]%s\n", roothash, mkproof.Proof, mkproof.Index, p.String())
+
+	isValid, merkleroot, err := p.Verify(roothash)
 	if err != nil {
 		t.Fatalf("err: %v\n", err)
 	} else {
-		fmt.Printf("[CheckProof] isValid: %v merkleroot: %x\n", isValid, merkleroot)
+		fmt.Printf("[Verify] isValid: %v merkleroot: %x\n", isValid, merkleroot)
+	}
+
+	merkleroot, proofstr, err := p.PrintProof()
+	if err != nil {
+		t.Fatalf("err: %v\n", err)
+	} else {
+		fmt.Printf("[Verify] merkleroot: %x\nproofstr:%s\n", merkleroot, proofstr)
+	}
+
+	//verify merkle proof
+	res, err := Verify_branch(root, uint64(index), b)
+	if err != nil {
+		t.Fatalf("Merkle tree failure %v", err)
+	} else {
+		fmt.Printf("Merkle tree works %x\n", res)
 	}
 }

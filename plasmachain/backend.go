@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/wolkdb/go-plasma/deep"
-	"github.com/wolkdb/go-plasma/merkle"
+	merkletree "github.com/wolkdb/go-plasma/merkle"
 	"github.com/wolkdb/go-plasma/smt"
 )
 
@@ -1514,6 +1514,46 @@ func (self *PlasmaChain) GetAnchorTransactionPool() (txs map[uint64][]*deep.Anch
 		sort.Sort(AnchorByChainIDandBlockNum(chainID))
 	}
 	return txs
+}
+
+// Proof APIs
+/* ========================================================================== */
+func (self *PlasmaChain) VerifySmartProof(chainRoot common.Hash, index hexutil.Uint64, proof hexutil.Bytes, chainID hexutil.Uint64, proofByte hexutil.Bytes, anchorRoot common.Hash) (bool, error) {
+	return self.verifySmartProof(chainRoot.Bytes(), uint64(index), proof, uint64(chainID), proofByte, anchorRoot.Bytes())
+}
+
+func (self *PlasmaChain) verifySMT(leaf, root []byte, index uint64, proofBytes []byte) (bool, error) {
+	p, err := smt.ToProof(index, proofBytes)
+	if err != nil {
+		return false, err
+	}
+	res := p.Verify(leaf, root, true)
+	return res, nil
+}
+
+func (self *PlasmaChain) verifyMerkle(root []byte, index uint64, proof []byte) (bool, error) {
+	p, err := merkletree.ToProof(proof, index)
+	if err != nil {
+		return false, err
+	}
+	res, _, err := p.Verify(root)
+	if err != nil {
+		return false, err
+	}
+	return res, nil
+}
+
+func (self *PlasmaChain) verifySmartProof(chainRoot []byte, index uint64, proof []byte, chainID uint64, proofByte []byte, anchorRoot []byte) (bool, error) {
+	isValidBlock, err := self.verifyMerkle(chainRoot, index, proof)
+	if !isValidBlock {
+		return false, err
+	}
+
+	isValidAnchor, err := self.verifySMT(chainRoot, anchorRoot, chainID, proofByte)
+	if !isValidAnchor {
+		return false, err
+	}
+	return true, nil
 }
 
 /* ########################################################################## */

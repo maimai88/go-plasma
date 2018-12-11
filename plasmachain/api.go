@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/wolkdb/go-plasma/deep"
-	"github.com/wolkdb/go-plasma/merkle"
+	merkletree "github.com/wolkdb/go-plasma/merkle"
 	"github.com/wolkdb/go-plasma/plasmachain/eventlog"
 	"github.com/wolkdb/go-plasma/smt"
 )
@@ -363,7 +363,7 @@ func ConvertToOrderMap(unordered map[string]interface{}) OrderedMap {
 }
 
 func RPCMarshalProof(tokenID uint64, txbyte []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.Bytes() // copies the header once
+	proofByte := proof.ProofBytes() // copies the header once
 	fields := map[string]interface{}{
 		"tokenID":     hexutil.Uint64(tokenID),
 		"blockNumber": hexutil.Uint64(blockNumber),
@@ -374,7 +374,7 @@ func RPCMarshalProof(tokenID uint64, txbyte []byte, proof *smt.Proof, blockNumbe
 }
 
 func RPCMarshalSMTProof(txbyte []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.Bytes() // copies the header once
+	proofByte := proof.ProofBytes() // copies the header once
 	fields := map[string]interface{}{
 		"txbyte":      hexutil.Bytes(txbyte),
 		"proofByte":   hexutil.Bytes(proofByte),
@@ -384,7 +384,7 @@ func RPCMarshalSMTProof(txbyte []byte, proof *smt.Proof, blockNumber uint64) (ma
 }
 
 func RPCMarshalDepositProof(txbyte []byte, proof *smt.Proof, blockNumber uint64, depositIndex uint64) (map[string]interface{}, error) {
-	proofByte := proof.Bytes() // copies the header once
+	proofByte := proof.ProofBytes() // copies the header once
 	fields := map[string]interface{}{
 		"txbyte":       hexutil.Bytes(txbyte),
 		"proofByte":    hexutil.Bytes(proofByte),
@@ -395,7 +395,7 @@ func RPCMarshalDepositProof(txbyte []byte, proof *smt.Proof, blockNumber uint64,
 }
 
 func RPCMarshalAnchorProof(anchorRoot []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.Bytes() // copies the header once
+	proofByte := proof.ProofBytes() // copies the header once
 	fields := map[string]interface{}{
 		"anchorRoot":  hexutil.Bytes(anchorRoot),
 		"proofByte":   hexutil.Bytes(proofByte),
@@ -408,7 +408,7 @@ func RPCMarshalBlockProof(txbyte []byte, blookProof *merkletree.Proof) (map[stri
 	fields := map[string]interface{}{
 		"txbyte": hexutil.Bytes(txbyte),
 		"index":  hexutil.Uint64(blookProof.Index),
-		"root":   hexutil.Bytes(blookProof.Root),
+		"root":   hexutil.Bytes(blookProof.Root()),
 		"proof":  hexutil.Bytes(blookProof.Proof),
 	}
 	return fields, nil

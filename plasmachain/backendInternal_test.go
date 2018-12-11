@@ -205,7 +205,7 @@ func (self *PlasmaChain) generateInternalProof(txHash common.Hash, verbose bool)
 	currR := currHeader.TransactionRoot
 	if currTx.PrevBlock == 0 {
 		//Deposit Exit
-		fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.Bytes(), currTx.Bytes())
+		fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.ProofBytes(), currTx.Bytes())
 		fmt.Printf("\n\n***** [0x%x] Deposit Exit (Auto Generated for: %s) *****\n\ndepositExit(uint64 depositIndex 0x%x)\n",
 			tokenID, currTx.Recipient.Hex(), currTx.DepositIndex)
 		return nil
@@ -227,21 +227,21 @@ func (self *PlasmaChain) generateInternalProof(txHash common.Hash, verbose bool)
 	}
 	prevR := prevHeader.TransactionRoot
 
-	fmt.Printf("Prev TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", prevTx.Hash().Hex(), prevBlk, prevR, prevProof.Bytes(), prevTx.Bytes())
-	fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.Bytes(), currTx.Bytes())
+	fmt.Printf("Prev TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", prevTx.Hash().Hex(), prevBlk, prevR, prevProof.ProofBytes(), prevTx.Bytes())
+	fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.ProofBytes(), currTx.Bytes())
 
 	if true {
-		if !prevProof.Check(prevTx.Hash().Bytes(), prevR.Bytes(), true) {
+		if !prevProof.Verify(prevTx.Hash().Bytes(), prevR.Bytes(), true) {
 			return fmt.Errorf("checkproof failure")
 		}
-		if !currProof.Check(currTx.Hash().Bytes(), currR.Bytes(), true) {
+		if !currProof.Verify(currTx.Hash().Bytes(), currR.Bytes(), true) {
 			return fmt.Errorf("checkproof failure")
 		}
 	}
 
 	if verbose {
 		fmt.Printf("\n\n***** [0x%x] Smart Exit (Auto Generated for: %s) *****\n\nStartExit(\nbytes  prevtxBytes 0x%x, \nbytes  prevProof   0x%x,\nuint64 prevBlock   %d,\n\nbytes  currtxBytes 0x%x,\nbytes  currProof   0x%x,\nuint64 currBlock   %d)\n\n\n",
-			tokenID, currTx.Recipient.Hex(), prevTx.Bytes(), prevProof.Bytes(), prevBlk, currTx.Bytes(), currProof.Bytes(), currBlk)
+			tokenID, currTx.Recipient.Hex(), prevTx.Bytes(), prevProof.ProofBytes(), prevBlk, currTx.Bytes(), currProof.ProofBytes(), currBlk)
 	} else {
 		fmt.Println("")
 	}

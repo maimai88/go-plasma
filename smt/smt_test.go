@@ -33,7 +33,7 @@ func TestBaseline(t *testing.T) {
 	st := time.Now()
 	kv := make(map[uint64][]byte)
 	for i := uint64(0); i < nkeys; i++ {
-		k := Bytes32ToUint64(deep.Keccak256(Uint64ToBytes32(i % 1000000)))
+		k := Bytes32ToUint64(Computehash(Uint64ToBytes32(i % 1000000)))
 		v := make([]byte, 4096)
 		rand.Read(v)
 		kv[k] = v
@@ -110,64 +110,6 @@ func TestBaseline(t *testing.T) {
 
 }
 
-/*
-func TestSequence(t *testing.T) {
-
-	// setup plasma store
-	pcs, err := plasmachain.NewPlasmaChunkstore(plasmachain.DefaultChunkstorePath)
-	if err != nil {
-		t.Fatalf("[smt_test:NewCloudstore]%v", err)
-	}
-	defer pcs.Close()
-
-	smt0 := smt.NewSparseMerkleTree(pcs)
-	nkeys := uint64(2)
-	kv := make(map[uint64]common.Hash)
-	for i := uint64(0); i < nkeys; i++ {
-
-		k := smt.UIntToByte(i)
-		v := smt.Keccak256([]byte(fmt.Sprintf("value%d", i)))
-		kv[i] = common.BytesToHash(v)
-		err = smt0.Insert(k, v, 0, 0)
-		if err != nil {
-			t.Fatalf("SetKey: %v\n", err)
-		}
-	}
-	smt0.Flush()
-	smt0.Dump()
-	chunkHash := smt0.ChunkHash()
-	merkleRoot := smt0.MerkleRoot()
-	fmt.Printf("Generated:  Hash: %x Merkle Root: %x\n", chunkHash, merkleRoot)
-	passes := 0
-	smt0 = smt.NewSparseMerkleTree(pcs)
-	smt0.Init(chunkHash)
-	for i := uint64(0); i < nkeys; i++ {
-		k := i
-		v1, found, proof, storageBytes, prevBlock, err := smt0.Get(smt.UIntToByte(k))
-		smt0.Flush()
-		// smt0.Dump()
-		if err != nil {
-			fmt.Printf("err not found %x %v \n", k, err)
-		} else if found {
-			if bytes.Compare(kv[k].Bytes(), v1) == 0 {
-				checkproof := proof.Check(v1, merkleRoot.Bytes(), smt0.DefaultHashes, false)
-				if checkproof {
-					passes++
-				} else {
-					fmt.Printf("k:%x v:%x storageBytes:%d prevBlock: %d ", k, v1, storageBytes, prevBlock)
-					t.Fatalf("CHECK PROOF ==> FAILURE\n")
-				}
-			} else {
-				t.Fatalf("k:%x v:%x sb:%d kv[k]:%x INCORRECT\n", k, v1, storageBytes, kv[k])
-			}
-		} else {
-			fmt.Printf("k:%x not found \n", k)
-		}
-	}
-	fmt.Printf("%d/%d keys PASSED\n", passes, nkeys)
-
-}
-*/
 type Config struct {
 	PlasmaAddr string
 	PlasmaPort uint64
@@ -235,8 +177,8 @@ func TestSMT(t *testing.T) {
 		inserts := 0
 		for i := uint64(0); i < nkeys; i++ {
 			storageBytesNew := uint64(3)
-			k := Bytes32ToUint64(deep.Keccak256(Uint64ToBytes32(i % 1000000)))
-			v := deep.Keccak256([]byte(fmt.Sprintf("%d%d", i, ver)))
+			k := Bytes32ToUint64(Computehash(Uint64ToBytes32(i % 1000000)))
+			v := Computehash([]byte(fmt.Sprintf("%d%d", i, ver)))
 			kv[ver][k] = common.BytesToHash(v)
 			prevBlock := ver
 			err = smt0.Insert(UIntToByte(k), v, storageBytesNew, prevBlock)
@@ -267,14 +209,14 @@ func TestSMT(t *testing.T) {
 		passes := 0
 		st := time.Now()
 		for i := uint64(0); i < nkeys; i++ {
-			k := Bytes32ToUint64(deep.Keccak256(Uint64ToBytes32(i % 10000)))
+			k := Bytes32ToUint64(Computehash(Uint64ToBytes32(i % 10000)))
 			v1, found, proof, _, _, err := smt0.Get(UIntToByte(k))
 			fmt.Printf("AFTER PROOF GEN: chunkHash: %x merkleroot: %x PROOF: %v\n", smt0.ChunkHash(), smt0.MerkleRoot(), proof)
 			if err != nil {
 				fmt.Printf("err not found %x %v \n", k, err)
 			} else if found {
 				if bytes.Compare(kv[ver][k].Bytes(), v1) == 0 {
-					checkproof := proof.Check(v1, merkleRoot[ver].Bytes(), false)
+					checkproof := proof.Verify(v1, merkleRoot[ver].Bytes(), false)
 					if checkproof {
 						passes++
 					} else {
