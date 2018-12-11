@@ -363,7 +363,7 @@ func ConvertToOrderMap(unordered map[string]interface{}) OrderedMap {
 }
 
 func RPCMarshalProof(tokenID uint64, txbyte []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.ProofBytes() // copies the header once
+	proofByte := proof.ProofBytes()
 	fields := map[string]interface{}{
 		"tokenID":     hexutil.Uint64(tokenID),
 		"blockNumber": hexutil.Uint64(blockNumber),
@@ -374,7 +374,7 @@ func RPCMarshalProof(tokenID uint64, txbyte []byte, proof *smt.Proof, blockNumbe
 }
 
 func RPCMarshalSMTProof(txbyte []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.ProofBytes() // copies the header once
+	proofByte := proof.ProofBytes()
 	fields := map[string]interface{}{
 		"txbyte":      hexutil.Bytes(txbyte),
 		"proofByte":   hexutil.Bytes(proofByte),
@@ -383,41 +383,60 @@ func RPCMarshalSMTProof(txbyte []byte, proof *smt.Proof, blockNumber uint64) (ma
 	return fields, nil
 }
 
-func RPCMarshalDepositProof(txbyte []byte, proof *smt.Proof, blockNumber uint64, depositIndex uint64) (map[string]interface{}, error) {
-	proofByte := proof.ProofBytes() // copies the header once
+func RPCMarshalChainInfo(chainID uint64, chainBlkNum uint64) (map[string]interface{}, error) {
 	fields := map[string]interface{}{
-		"txbyte":       hexutil.Bytes(txbyte),
-		"proofByte":    hexutil.Bytes(proofByte),
-		"blockNumber":  hexutil.Uint64(blockNumber),
-		"depositIndex": hexutil.Uint64(depositIndex),
-	}
-	return fields, nil
-}
-
-func RPCMarshalAnchorProof(anchorRoot []byte, proof *smt.Proof, blockNumber uint64) (map[string]interface{}, error) {
-	proofByte := proof.ProofBytes() // copies the header once
-	fields := map[string]interface{}{
-		"anchorRoot":  hexutil.Bytes(anchorRoot),
-		"proofByte":   hexutil.Bytes(proofByte),
-		"blockNumber": hexutil.Uint64(blockNumber),
+		"chainID":     hexutil.Uint64(chainID),
+		"chainBlkNum": hexutil.Uint64(chainBlkNum),
 	}
 	return fields, nil
 }
 
 func RPCMarshalBlockProof(txbyte []byte, blookProof *merkletree.Proof) (map[string]interface{}, error) {
+	//var tx *deep.AnchorTransaction
+	//_ = rlp.Decode(bytes.NewReader(txbyte), &tx)
+	pseudoRoot, err := blookProof.GetRoot()
+	var blockroot common.Hash
+	if err == nil {
+		blockroot = common.BytesToHash(pseudoRoot)
+	}
+
 	fields := map[string]interface{}{
-		"txbyte": hexutil.Bytes(txbyte),
-		"index":  hexutil.Uint64(blookProof.Index),
-		"root":   hexutil.Bytes(blookProof.Root()),
-		"proof":  hexutil.Bytes(blookProof.Proof),
+		//"AnchorTx": tx,
+		"txhash":    hexutil.Bytes(blookProof.Leaf()),
+		"txbyte":    hexutil.Bytes(txbyte),
+		"chainRoot": common.Hash(blockroot),
+		"index":     hexutil.Uint64(blookProof.Index),
+		"proof":     hexutil.Bytes(blookProof.Proof),
 	}
 	return fields, nil
 }
 
-func RPCMarshalAnchorInfo(chainID uint64, anchorBlkNum uint64) (map[string]interface{}, error) {
+func RPCMarshalAnchorProof(pseudoRoot []byte, proof *smt.Proof, AnchorBlkNum uint64) (map[string]interface{}, error) {
+	var blockroot, anchorRoot common.Hash
+	if len(pseudoRoot) == 32 {
+		blockroot = common.BytesToHash(pseudoRoot)
+	}
+	ar := proof.Root(pseudoRoot)
+	if len(ar) == 32 {
+		anchorRoot = common.BytesToHash(ar)
+	}
+	proofByte := proof.ProofBytes()
 	fields := map[string]interface{}{
-		"chainID":      hexutil.Uint64(chainID),
-		"anchorBlkNum": hexutil.Uint64(anchorBlkNum),
+		"chainRoot":    common.Hash(blockroot),
+		"proofByte":    hexutil.Bytes(proofByte),
+		"AnchorRoot":   common.Hash(anchorRoot),
+		"AnchorBlkNum": hexutil.Uint64(AnchorBlkNum),
+	}
+	return fields, nil
+}
+
+func RPCMarshalDepositProof(txbyte []byte, proof *smt.Proof, blockNumber uint64, depositIndex uint64) (map[string]interface{}, error) {
+	proofByte := proof.ProofBytes() // copies the header once
+	fields := map[string]interface{}{
+		"txbyte":        hexutil.Bytes(txbyte),
+		"proofByte":     hexutil.Bytes(proofByte),
+		"plasmaBlkNumr": hexutil.Uint64(blockNumber),
+		"depositIndex":  hexutil.Uint64(depositIndex),
 	}
 	return fields, nil
 }

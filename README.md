@@ -163,7 +163,7 @@ $ ./build/bin/plasma attach ~/Library/Ethereum/plasmachain.ipc
 }
 
 *Note: IPC endpoint may vary depending on operating system. Please check:
-'INFO [MM-DD|HH:mm:s] IPC endpoint opened url=~/Library/Ethereum/plasmachain.ipc' log message to confirm
+'INFO [MM-DD|HH:mm:s] IPC endpoint opened url=~/LOCATION/TO/RPCENDPOINT/plasmachain.ipc' log message to confirm
 ```
 Currently, Public JSON-RPC API support the following functions:
 
@@ -691,9 +691,6 @@ curl -X POST --data  '{"jsonrpc":"2.0","id":"15","method":"plasma_getPlasmaBalan
 }
 ```
 
-
-
-
 ## Anchor Transaction
 
 * BlockchainID Assignment - A valid token is required to create Layer 3 blockchain. L3 blockchainID is automatically assigned using the last 8 bytes of  `Keccak256(tokenID, blockchainNonce)`.  For example, the first L3 chain created by `0x37b01bd3adfc4ef3` will have blockchainID `0x69eb463bc4f6b2df`, the last 8 bytes of `Keccak256(37b01bd3adfc4ef3,0)`
@@ -778,22 +775,24 @@ WARNING: empty extra must be encoded as 'RLP([[],[]])' or 'c2c0c0' when there's 
 # Get SMART Proof
 > plasma.getAnchorTransactionProof("0xb6f91e2a3059e7a2d347d76d2e548f0a3c58068f0185f5dadcceb9580591657a")
 {
-  anchorInfo: {
-    anchorBlkNum: "0x1",
-    chainID: "0x69eb463bc4f6b2df"
+  anchorProof: {
+    AnchorBlkNum: "0x3",
+    AnchorRoot: "0xa35a6b6586809dfc915a23b3b289c67b05f23a82fee5a5f080c56ddb9103ef76",
+    chainRoot: "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
+    proofByte: "0x0000000000000000"
   },
   blockProof: {
+    chainRoot: "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
     index: "0x1",
-    proof: "0x6808da8621d7c01021dbd98c37344e48418dd1967d6302d73a7b1c9341ca3be1",
-    root: "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
-    txbyte: "0xf8868869eb463bc4f6b2df01a06d255fc3390ee6b41191da315958b7d6a1e5b17904cc7683558f98acc57977b4d7d5943088666e05794d2498d9d98326c1b426c9950767c0b8415a09945a81e39455acc1c3c97b559112ec9e874c0964c38f3c119efc10d3a663433e0726869579edf2e2285f676a6cb1330b6e22dd6a19398b630002841ed08201"
+    proof: "0xb6f91e2a3059e7a2d347d76d2e548f0a3c58068f0185f5dadcceb9580591657a6808da8621d7c01021dbd98c37344e48418dd1967d6302d73a7b1c9341ca3be1",
+    txbyte: "0xf8868869eb463bc4f6b2df01a06d255fc3390ee6b41191da315958b7d6a1e5b17904cc7683558f98acc57977b4d7d5943088666e05794d2498d9d98326c1b426c9950767c0b8415a09945a81e39455acc1c3c97b559112ec9e874c0964c38f3c119efc10d3a663433e0726869579edf2e2285f676a6cb1330b6e22dd6a19398b630002841ed08201",
+    txhash: "0xb6f91e2a3059e7a2d347d76d2e548f0a3c58068f0185f5dadcceb9580591657a"
   },
-  prooflog: "......",
-  smtProof: {
-    anchorRoot: "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
-    blockNumber: "0x3",
-    proofByte: "0x0000000000000000"
-  }
+  chainInfo: {
+    chainBlkNum: "0x1",
+    chainID: "0x69eb463bc4f6b2df"
+  },
+  prooflog: "......"
 }
 
 ```
@@ -879,20 +878,22 @@ curl -X POST --data  '{"jsonrpc":"2.0","id":"20","method":"plasma_getAnchorTrans
     "jsonrpc": "2.0",
     "id": "20",
     "result": {
-        "anchorInfo": {
-            "anchorBlkNum": "0x1",
-            "chainID": "0x69eb463bc4f6b2df"
+        "anchorProof": {
+            "AnchorBlkNum": "0x3",
+            "AnchorRoot": "0xa35a6b6586809dfc915a23b3b289c67b05f23a82fee5a5f080c56ddb9103ef76",
+            "chainRoot": "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
+            "proofByte": "0x0000000000000000"
         },
         "blockProof": {
+            "chainRoot": "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
             "index": "0x1",
-            "proof": "0x6808da8621d7c01021dbd98c37344e48418dd1967d6302d73a7b1c9341ca3be1",
-            "root": "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
-            "txbyte": "0xf8868869eb463bc4f6b2df01a06d255fc3390ee6b41191da315958b7d6a1e5b17904cc7683558f98acc57977b4d7d5943088666e05794d2498d9d98326c1b426c9950767c0b8415a09945a81e39455acc1c3c97b559112ec9e874c0964c38f3c119efc10d3a663433e0726869579edf2e2285f676a6cb1330b6e22dd6a19398b630002841ed08201"
+            "proof": "0xb6f91e2a3059e7a2d347d76d2e548f0a3c58068f0185f5dadcceb9580591657a6808da8621d7c01021dbd98c37344e48418dd1967d6302d73a7b1c9341ca3be1",
+            "txbyte": "0xf8868869eb463bc4f6b2df01a06d255fc3390ee6b41191da315958b7d6a1e5b17904cc7683558f98acc57977b4d7d5943088666e05794d2498d9d98326c1b426c9950767c0b8415a09945a81e39455acc1c3c97b559112ec9e874c0964c38f3c119efc10d3a663433e0726869579edf2e2285f676a6cb1330b6e22dd6a19398b630002841ed08201",
+            "txhash": "0xb6f91e2a3059e7a2d347d76d2e548f0a3c58068f0185f5dadcceb9580591657a"
         },
-        "smtProof": {
-            "anchorRoot": "0xb2c958036da87b5e289cc04cd8fb40341f78f43485445687d74be69395d11dc7",
-            "blockNumber": "0x3",
-            "proofByte": "0x0000000000000000"
+        "chainInfo": {
+            "chainBlkNum": "0x1",
+            "chainID": "0x69eb463bc4f6b2df"
         },
         "prooflog": "......"
     }
