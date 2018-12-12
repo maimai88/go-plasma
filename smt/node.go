@@ -68,21 +68,21 @@ func (n *Node) SetHash(hash []byte) {
 	n.chunkHash = hash
 }
 
-func (n *Node) generateProof(pcs deep.StorageLayer, k []byte, v []byte, i int, p *Proof) (ok bool) {
+func (n *Node) generateProof(cs deep.StorageLayer, k []byte, v []byte, i int, p *Proof) (ok bool) {
 	if n.unloaded {
-		n.load(pcs)
+		n.load(cs)
 	}
 	idx := keypiece(k, i)
 	if n.children[idx] == nil {
 		return false // not a member of the tree!
 	}
 	if n.children[idx].unloaded {
-		n.children[idx].load(pcs)
+		n.children[idx].load(cs)
 	}
 	if n.children[idx].terminal {
 		p.proofBits = 0
 	} else {
-		ok = n.children[idx].generateProof(pcs, k, v, i+1, p)
+		ok = n.children[idx].generateProof(cs, k, v, i+1, p)
 		if !ok {
 			return false
 		}
@@ -152,8 +152,8 @@ func (n *Node) computeMerkleRootCache() {
 	copy(n.merkleRoot[:], n.mrcache[0][0][:])
 }
 
-func (n *Node) computeMerkleRoot(pcs deep.StorageLayer) []byte {
-	n.load(pcs)
+func (n *Node) computeMerkleRoot(cs deep.StorageLayer) []byte {
+	n.load(cs)
 
 	if n.terminal {
 		// build merkle root hash of a terminal going from level 0 to the terminal Level
@@ -185,7 +185,7 @@ func (n *Node) computeMerkleRoot(pcs deep.StorageLayer) []byte {
 		// ok, we are not the terminal, so for each child, compute THEIR merkle root at the child Level
 		for i := 0; i < nchildren; i++ {
 			if n.children[i] != nil {
-				n.children[i].computeMerkleRoot(pcs)
+				n.children[i].computeMerkleRoot(cs)
 			}
 		}
 	}
@@ -257,9 +257,9 @@ func (n *Node) delete(k []byte, i int) (ok bool, err error) {
 	return false, nil
 }
 
-func (n *Node) insert(pcs deep.StorageLayer, k []byte, v []byte, i int, storageBytesNew uint64, blockNum uint64) error {
+func (n *Node) insert(cs deep.StorageLayer, k []byte, v []byte, i int, storageBytesNew uint64, blockNum uint64) error {
 	if n.unloaded {
-		n.load(pcs)
+		n.load(cs)
 	}
 
 	if i >= nkeypieces(k) {
@@ -292,11 +292,11 @@ func (n *Node) insert(pcs deep.StorageLayer, k []byte, v []byte, i int, storageB
 					// two keys!
 					n.children[idx].dirty = true
 					n.children[idx].terminal = false
-					n.children[idx].insert(pcs, n.children[idx].key, n.children[idx].chunkHash, i+1, n.children[idx].storageBytes, n.children[idx].blockNum)
-					n.children[idx].insert(pcs, k, v, i+1, storageBytesNew, blockNum)
+					n.children[idx].insert(cs, n.children[idx].key, n.children[idx].chunkHash, i+1, n.children[idx].storageBytes, n.children[idx].blockNum)
+					n.children[idx].insert(cs, k, v, i+1, storageBytesNew, blockNum)
 				}
 			} else {
-				n.children[idx].insert(pcs, k, v, i+1, storageBytesNew, blockNum)
+				n.children[idx].insert(cs, k, v, i+1, storageBytesNew, blockNum)
 			}
 		}
 		tot := uint64(0)
@@ -312,11 +312,11 @@ func (n *Node) insert(pcs deep.StorageLayer, k []byte, v []byte, i int, storageB
 
 // load from SWARM using self.chunkHash; node chunks are saved in "flush" operations
 // node chunks are nchildren rows, each of 40 bytes: 8 byte keys and 32 byte hashes.  If the 32 byte hash is 0, then there is no child.
-func (self *Node) load(pcs deep.StorageLayer) bool {
+func (self *Node) load(cs deep.StorageLayer) bool {
 	if !self.unloaded {
 		return false
 	}
-	chunk, ok, err := pcs.GetChunk(self.chunkHash)
+	chunk, ok, err := cs.GetChunk(self.chunkHash)
 	//fmt.Printf("\nThe chunk retrieved using hash (%x): %+x (%+v) and ERR: %+v OK: %+v", self.chunkHash, chunk, chunk, err, ok)
 	if err != nil {
 		log.Info(fmt.Sprintf("Error while attempting to retrieve chunk of hash %x | %+v", self.chunkHash, err))
@@ -353,8 +353,8 @@ func (self *Node) load(pcs deep.StorageLayer) bool {
 	return true
 }
 
-func (self *Node) get(pcs deep.StorageLayer, k []byte, i int) (v []byte, ok bool, storageBytes uint64, blockNum uint64, err error) {
-	self.load(pcs)
+func (self *Node) get(cs deep.StorageLayer, k []byte, i int) (v []byte, ok bool, storageBytes uint64, blockNum uint64, err error) {
+	self.load(cs)
 	//TODO: load siblings along with desired chunk / child
 	idx := keypiece(k, i)
 	//log.Debug(fmt.Sprintf("SMT Node get k = %x i = %d idx = %d", k, i, idx))
@@ -365,7 +365,7 @@ func (self *Node) get(pcs deep.StorageLayer, k []byte, i int) (v []byte, ok bool
 				return self.children[idx].chunkHash, (bytes.Compare(self.children[idx].key, k) == 0), self.children[idx].storageBytes, self.children[idx].blockNum, nil
 			}
 		} else {
-			v, ok, storageBytes, blockNum, err = self.children[idx].get(pcs, k, i+1)
+			v, ok, storageBytes, blockNum, err = self.children[idx].get(cs, k, i+1)
 			//log.Debug(fmt.Sprintf("SMT Node get else k = %x i = %d idx = %d v = %x", k, i, idx, v))
 			if err != nil {
 				return v, ok, storageBytes, blockNum, err
@@ -378,7 +378,7 @@ func (self *Node) get(pcs deep.StorageLayer, k []byte, i int) (v []byte, ok bool
 	return v, false, 0, 0, nil
 }
 
-func (self *Node) flush(pcs deep.StorageLayer) (err error) {
+func (self *Node) flush(cs deep.StorageLayer) (err error) {
 	if self.dirty {
 		// compute hash!
 		chunk := make([]byte, chunkSize)
@@ -392,7 +392,7 @@ func (self *Node) flush(pcs deep.StorageLayer) (err error) {
 					copy(chunk[i*bytesPerChild+80:i*bytesPerChild+88], UIntToByte(self.children[i].blockNum))
 				} else {
 					// recursive call
-					err = self.children[i].flush(pcs)
+					err = self.children[i].flush(cs)
 					if err != nil {
 						return err
 					} else {
@@ -411,12 +411,12 @@ func (self *Node) flush(pcs deep.StorageLayer) (err error) {
 		// store newly developed chunk to Cloudstore
 		chunkID := Computehash(chunk)
 		//log.Info("Flush", "chunkhash", chunkID, "chunk", chunk)
-		//err := pcs.StoreChunk(chunkID, chunk)
+		//err := cs.StoreChunk(chunkID, chunk)
 		go func() {
-			//TODO: batchstorechunk via remotestorage err = pcs.BatchStoreChunk(chunkID, chunk)
+			//TODO: batchstorechunk via remotestorage err = cs.BatchStoreChunk(chunkID, chunk)
 			//log.Info("calling storechunk in smt/node.go")
 			//log.Debug(fmt.Sprintf("smt Node flush chunkID: %x chunk %x", chunkID, chunk))
-			err := pcs.SetChunk(chunkID, chunk)
+			err := cs.SetChunk(chunkID, chunk)
 			if err != nil {
 				log.Info("smt/node.go | Error doing StoreChunk", "error", err)
 				//return err
@@ -430,10 +430,10 @@ func (self *Node) flush(pcs deep.StorageLayer) (err error) {
 }
 
 //TODO: technically flushRoot is only required when there's a change to the mapping
-func (self *Node) flushRoot(pcs deep.StorageLayer) (err error) {
+func (self *Node) flushRoot(cs deep.StorageLayer) (err error) {
 	//create (merkleroot, chunkHash) mapping
 	log.Debug(fmt.Sprintf("smt Node flushRoot %x ", self.merkleRoot))
-	err = pcs.SetChunk(self.merkleRoot, self.chunkHash)
+	err = cs.SetChunk(self.merkleRoot, self.chunkHash)
 	if err != nil {
 		return err
 	}

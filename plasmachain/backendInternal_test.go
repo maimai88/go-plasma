@@ -36,7 +36,7 @@ func TestPlasmaChainInternal(t *testing.T) {
 		showProofs     = true
 		simulated      = true
 		verbose        = false
-		sleeptime      = 5000
+		sleeptime      = 2000
 	)
 
 	testAcct := map[string]string{
@@ -59,44 +59,52 @@ func TestPlasmaChainInternal(t *testing.T) {
 		log.Root().SetHandler(h)
 	}
 
+	localconfig := LocalTestConfig
+	//localconfig.DataDir = "/tmp/plasmachaintest"
+
 	ctx := &node.ServiceContext{}
-	chain, err := New(ctx, &LocalTestConfig, simulated)
+	chain, err := New(ctx, &localconfig, simulated)
 	if err != nil {
 		t.Fatalf("Plasmachain err: %v", err)
 	}
 
 	_, err = deep.NewPOA(ctx, nil, chain, 0)
 
-	//chain.initDeposit(maxTokens, simulated)
-	var currentBlockNum uint64
-	currentBlockNum = chain.CurrentBlock().Number() + 1
-	fmt.Printf("\n\n========= Block #%d Start =========\n", currentBlockNum)
+	startblknum := chain.CurrentBlock().Number()
 
-	pendingTx := chain.GetPlasmaTransactionPool()
-	txList, _ := json.Marshal(pendingTx)
+	fmt.Printf("\n\n========= Last Block #%d =========\n", startblknum)
 
-	fmt.Printf("\n\n********* Pending PlasmaTransactions ********* \n\n%v\n", string(txList))
+	if startblknum == 0 {
+		startblknum = chain.CurrentBlock().Number() + 1
+		fmt.Printf("\n\n========= Block #%d Start =========\n", startblknum)
 
-	chain.plasmatxpool.MintTestBlock()
-	time.Sleep(sleeptime * time.Millisecond)
+		pendingTx := chain.GetPlasmaTransactionPool()
+		txList, _ := json.Marshal(pendingTx)
 
-	fmt.Printf("\n\n********* Mined Block #%d ********* \n\n", currentBlockNum)
-	b := chain.GetPlasmaBlock(rpc.BlockNumber(currentBlockNum))
+		fmt.Printf("\n\n********* Pending PlasmaTransactions ********* \n\n%v\n", string(txList))
 
-	fmt.Printf("RootChain Contract Call >>> submitBlock(0x%x, %d)\n\n", b.header.TransactionRoot, b.header.BlockNumber)
-	if submitBlocks && !simulated {
-		chain.publishBlock(b.header.TransactionRoot, b.header.BlockNumber, submitBlocks)
-	}
+		chain.plasmatxpool.MintTestBlock()
+		time.Sleep(sleeptime * time.Millisecond)
 
-	fmt.Printf("%s\n\n", b)
+		fmt.Printf("\n\n********* Mined Block #%d ********* \n\n", startblknum)
+		b := chain.GetPlasmaBlock(rpc.BlockNumber(startblknum))
 
-	for _, acct := range pendingTx {
-		for _, tx := range acct {
-			chain.generateInternalProof(tx.Hash(), true)
+		fmt.Printf("RootChain Contract Call >>> submitBlock(0x%x, %d)\n\n", b.header.TransactionRoot, b.header.BlockNumber)
+		if submitBlocks && !simulated {
+			chain.publishBlock(b.header.TransactionRoot, b.header.BlockNumber, submitBlocks)
 		}
-	}
 
-	fmt.Printf("\n========= Block #%d Done =========\n", currentBlockNum)
+		fmt.Printf("%s\n\n", b)
+
+		for _, acct := range pendingTx {
+			for _, tx := range acct {
+				chain.generateInternalProof(tx.Hash(), true)
+			}
+		}
+
+		fmt.Printf("\n========= Block #%d Done =========\n", startblknum)
+
+	}
 
 	var tokenIDList []uint64
 
@@ -123,16 +131,17 @@ func TestPlasmaChainInternal(t *testing.T) {
 		// build tokenIDList from event
 	}
 
-	for chain.CurrentBlock().Number() < numBlocks {
+	endingblock := startblknum + numBlocks
+	for startblknum < endingblock {
 
 		cnt := 0
-		currentBlockNum = chain.CurrentBlock().Number() + 1
+		startblknum = chain.CurrentBlock().Number() + 1
 		var txHashList = make(map[uint64]*common.Hash)
 
-		fmt.Printf("\n\n========= Block #%d Start =========\n", currentBlockNum)
+		fmt.Printf("\n\n========= Block #%d Start =========\n", startblknum)
 
 		for _, tokenID := range tokenIDList {
-			randomTransact := uint64(currentBlockNum+tokenID) % 3
+			randomTransact := uint64(startblknum+tokenID) % 3
 			if randomTransact == 1 {
 				txhash, err := chain.internalAutoSign(tokenID, testKeys, testAddrs)
 				if err != nil {
@@ -144,7 +153,7 @@ func TestPlasmaChainInternal(t *testing.T) {
 		}
 
 		if cnt == 0 {
-			reserveToken := tokenIDList[currentBlockNum%uint64(len(tokenIDList))]
+			reserveToken := tokenIDList[startblknum%uint64(len(tokenIDList))]
 			txhash, err := chain.internalAutoSign(reserveToken, testKeys, testAddrs)
 			if err != nil {
 				t.Fatalf("internalAutoSign err: %v\n", err)
@@ -159,9 +168,9 @@ func TestPlasmaChainInternal(t *testing.T) {
 		chain.plasmatxpool.MintTestBlock()
 		time.Sleep(sleeptime * time.Millisecond)
 
-		fmt.Printf("\n\n********* Mined Block #%d ********* \n\n", currentBlockNum)
+		fmt.Printf("\n\n********* Mined Block #%d ********* \n\n", startblknum)
 
-		b := chain.GetPlasmaBlock(rpc.BlockNumber(currentBlockNum))
+		b := chain.GetPlasmaBlock(rpc.BlockNumber(startblknum))
 		fmt.Printf("RootChain Contract Call >>> submitBlock(0x%x, %d)\n\n", b.header.TransactionRoot, b.header.BlockNumber)
 
 		if submitBlocks && !simulated {
@@ -171,14 +180,14 @@ func TestPlasmaChainInternal(t *testing.T) {
 		fmt.Printf("%s\n\n", b)
 
 		for tokenID, txHash := range txHashList {
-			randomCheck := uint64(currentBlockNum+tokenID) % 2
+			randomCheck := uint64(startblknum+tokenID) % 2
 			chain.generateInternalProof(*txHash, randomCheck == 0)
 		}
 
-		fmt.Printf("\n========= Block #%d Done =========\n", currentBlockNum)
+		fmt.Printf("\n========= Block #%d Done =========\n", startblknum)
 
-		if currentBlockNum != chain.CurrentBlock().Number() {
-			t.Fatalf("Short circuited - fail to mint block #%v\n", currentBlockNum)
+		if startblknum != chain.CurrentBlock().Number() {
+			t.Fatalf("Short circuited - fail to mint block #%v\n", startblknum)
 		}
 	}
 }
@@ -231,10 +240,10 @@ func (self *PlasmaChain) generateInternalProof(txHash common.Hash, verbose bool)
 	fmt.Printf("Curr TX [txHash:%s] [Root[%d]: 0x%x] [Proof: 0x%x] [Txbytes: 0x%x]\n\n", currTx.Hash().Hex(), currBlk, currR, currProof.ProofBytes(), currTx.Bytes())
 
 	if true {
-		if !prevProof.Verify(prevTx.Hash().Bytes(), prevR.Bytes(), true) {
+		if !prevProof.Verify(prevTx.Hash().Bytes(), prevR.Bytes(), false) {
 			return fmt.Errorf("checkproof failure")
 		}
-		if !currProof.Verify(currTx.Hash().Bytes(), currR.Bytes(), true) {
+		if !currProof.Verify(currTx.Hash().Bytes(), currR.Bytes(), false) {
 			return fmt.Errorf("checkproof failure")
 		}
 	}
